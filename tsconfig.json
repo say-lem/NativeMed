@@ -3,9 +3,10 @@
     "target": "ES2020",
     "module": "commonjs",
     "lib": ["ES2020"],
+    "typeRoots": ["./node_modules/@types"],
     "types": ["node"],
     "outDir": "./dist",
-    "rootDir": ".",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -15,6 +16,6 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
