@@ -102,6 +102,14 @@ export const getPublishedSpecialties = async (): Promise<PublishedSpecialtyCount
   }));
 };
 
+export const getCasesBySpecialty = async (
+  specialty: string,
+  params: CaseFilterInput,
+) => {
+  const scopedParams: CaseFilterInput = { ...params, specialty };
+  return getPublishedCases(scopedParams);
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Admin — full access (published + drafts)
 // ─────────────────────────────────────────────────────────────────────────────

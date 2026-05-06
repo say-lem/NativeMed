@@ -7,6 +7,7 @@ import {
   updateCaseSchema,
   caseFilterSchema,
   caseIdSchema,
+  caseSpecialtyParamsSchema,
 } from '../schema/cases.schema';
 import * as casesController from '../controller/cases.controller';
 
@@ -26,6 +27,14 @@ router.get(
   authenticate,
   validate(caseFilterSchema, 'query'),
   casesController.getPublishedCases,
+);
+
+router.get(
+  '/specialty/:specialty',
+  authenticate,
+  validate(caseSpecialtyParamsSchema, 'params'),
+  validate(caseFilterSchema, 'query'),
+  casesController.getCasesBySpecialty,
 );
 
 // Full published case detail — all sections
