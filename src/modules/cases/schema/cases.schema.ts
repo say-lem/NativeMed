@@ -101,6 +101,10 @@ export const caseIdSchema = z.object({
   id: mongoId,
 });
 
+export const caseSpecialtyParamsSchema = z.object({
+  specialty: z.string().trim().min(1, 'Specialty is required'),
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Inferred types
 // ─────────────────────────────────────────────────────────────────────────────
