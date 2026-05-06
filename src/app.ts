@@ -15,7 +15,9 @@ import contentRoutes from './modules/content/routes/content.route';
 
 const app = express();
 
-// ── Security headers 
+app.set('trust proxy', 1); // Trust Render's proxy for accurate IP detection
+
+// ── Security headers
 app.use(helmet());
 
 // ── CORS 
