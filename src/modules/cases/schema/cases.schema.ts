@@ -59,6 +59,7 @@ const furtherResourceSchema = z.object({
 export const createCaseSchema = z.object({
   stationNumber:      z.coerce.number().int().min(1),
   title:              nonEmptyString('Title'),
+  consultationType:   z.string().trim().default('Consultation'),
   specialty:          nonEmptyString('Specialty'),
   difficulty:         z.enum(['easy', 'medium', 'hard']).default('medium'),
   isPublished:        z.boolean().default(false),

@@ -7,6 +7,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "seed:admin": "ts-node src/scripts/seed-admin.ts",
+  "seed:cases": "ts-node src/scripts/seed-cases.ts",
     "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

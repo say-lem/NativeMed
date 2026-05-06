@@ -84,8 +84,22 @@ export const getPublishedCaseById = async (caseId: string) => {
  * Distinct specialty values from published cases — used to populate
  * the specialty filter dropdown on the frontend.
  */
-export const getPublishedSpecialties = async (): Promise<string[]> => {
-  return MockCase.distinct('specialty', { isPublished: true });
+export interface PublishedSpecialtyCount {
+  specialty: string;
+  count: number;
+}
+
+export const getPublishedSpecialties = async (): Promise<PublishedSpecialtyCount[]> => {
+  const rows = await MockCase.aggregate<{ _id: string; count: number }>([
+    { $match: { isPublished: true } },
+    { $group: { _id: '$specialty', count: { $sum: 1 } } },
+    { $sort: { _id: 1 } },
+  ]);
+
+  return rows.map((r) => ({
+    specialty: r._id,
+    count: r.count,
+  }));
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
