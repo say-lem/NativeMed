@@ -1,7 +1,8 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
-
+// ─────────────────────────────────────────────────────────────────────────────
 // Sub-document interfaces
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface IBloodTestRow {
   test: string;           // e.g. "ALT"
@@ -42,8 +43,9 @@ export interface IFurtherResource {
   url: string;
 }
 
-
+// ─────────────────────────────────────────────────────────────────────────────
 // Root document interface
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface IMockCase extends Document {
   _id: Types.ObjectId;
@@ -51,6 +53,7 @@ export interface IMockCase extends Document {
   // ── Identity & discovery ──────────────────────────────────────────────────
   stationNumber: number;           // e.g. 2  (used for ordering/display)
   title: string;                   // e.g. "Abnormal LFTs – Fatty Liver"
+  consultationType: string;        // e.g. "Video Consultation" | "Telephone Consultation"
   specialty: string;               // e.g. "Gastroenterology"
   difficulty: 'easy' | 'medium' | 'hard';
   isPublished: boolean;
@@ -71,14 +74,15 @@ export interface IMockCase extends Document {
   updatedAt: Date;
 }
 
-
+// ─────────────────────────────────────────────────────────────────────────────
 // Sub-document schemas
+// ─────────────────────────────────────────────────────────────────────────────
 
 const bloodTestRowSchema = new Schema<IBloodTestRow>(
   {
     test:           { type: String, required: true, trim: true },
     result:         { type: String, required: true, trim: true },
-    referenceRange: { type: String, required: true, trim: true },
+    referenceRange: { type: String, trim: true, default: 'N/A' }, // not all tests have a range
     isAbnormal:     { type: Boolean, required: true, default: false },
   },
   { _id: false },
@@ -131,14 +135,16 @@ const furtherResourceSchema = new Schema<IFurtherResource>(
   { _id: false },
 );
 
-
+// ─────────────────────────────────────────────────────────────────────────────
 // Root schema
+// ─────────────────────────────────────────────────────────────────────────────
 
 const mockCaseSchema = new Schema<IMockCase>(
   {
-    stationNumber: { type: Number, required: true },
-    title:         { type: String, required: true, trim: true },
-    specialty:     { type: String, required: true, trim: true },
+    stationNumber:    { type: Number, required: true },
+    title:            { type: String, required: true, trim: true },
+    consultationType: { type: String, required: true, trim: true },
+    specialty:        { type: String, required: true, trim: true },
     difficulty:    { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
     isPublished:   { type: Boolean, default: false },
     createdBy:     { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -155,16 +161,18 @@ const mockCaseSchema = new Schema<IMockCase>(
   { timestamps: true },
 );
 
-
+// ─────────────────────────────────────────────────────────────────────────────
 // Indexes
+// ─────────────────────────────────────────────────────────────────────────────
 
 mockCaseSchema.index({ isPublished: 1, specialty: 1 });
 mockCaseSchema.index({ isPublished: 1, difficulty: 1 });
 mockCaseSchema.index({ stationNumber: 1 });
 mockCaseSchema.index({ createdBy: 1 });
 
-
+// ─────────────────────────────────────────────────────────────────────────────
 // Text index — lets users search by title, specialty or patient name
+// ─────────────────────────────────────────────────────────────────────────────
 
 mockCaseSchema.index(
   {
