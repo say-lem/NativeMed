@@ -50,13 +50,6 @@ export const getPublishedCases = async (params: CaseFilterInput) => {
     'patientData.age': 1,
     'patientData.gender': 1,
     createdAt: 1,
-    // Exclude heavy content sections from list view
-    patientStory: 0,
-    markingScheme: 0,
-    exampleExplanation: 0,
-    management: 0,
-    learningPoints: 0,
-    furtherResources: 0,
   };
 
   const [items, total] = await Promise.all([
