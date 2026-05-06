@@ -13,8 +13,9 @@ const getSingleParam = (value: string | string[] | undefined): string =>
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const getPublishedCases = asyncHandler(async (req: Request, res: Response) => {
-  // req.query is already validated and coerced by the validate middleware
+  console.log('query received:', req.query); // add this
   const params = caseFilterSchema.parse(req.query);
+  console.log('params parsed:', params);     // and this
   const result = await casesService.getPublishedCases(params);
   return ApiResponse.success(res, 'Cases fetched', result);
 });
