@@ -13,7 +13,9 @@ const getSingleParam = (value: string | string[] | undefined): string =>
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const getPublishedCases = asyncHandler(async (req: Request, res: Response) => {
-  const result = await casesService.getPublishedCases(req.query as unknown as CaseFilterInput);
+  // req.query is already validated and coerced by the validate middleware
+  const params = caseFilterSchema.parse(req.query);
+  const result = await casesService.getPublishedCases(params);
   return ApiResponse.success(res, 'Cases fetched', result);
 });
 
@@ -46,7 +48,8 @@ export const createCase = asyncHandler(async (req: AuthRequest, res: Response) =
 });
 
 export const getAllCasesAdmin = asyncHandler(async (req: Request, res: Response) => {
-  const result = await casesService.getAllCasesAdmin(req.query as unknown as CaseFilterInput);
+  const params = caseFilterSchema.parse(req.query);
+  const result = await casesService.getAllCasesAdmin(params);
   return ApiResponse.success(res, 'All cases fetched', result);
 });
 
