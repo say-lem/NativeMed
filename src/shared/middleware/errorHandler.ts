@@ -52,7 +52,8 @@ export const errorHandler = (
     console.error('🔴 Unhandled error:', err);
     ApiResponse.error(res, err.message, 500, { stack: err.stack });
   } else {
-    // Never leak internals in production
+    console.error('🔴 Unhandled error:', err.message); // ← add this
+    console.error(err.stack);                           // ← and this
     ApiResponse.error(res, 'Something went wrong', 500);
   }
 };
