@@ -4,13 +4,6 @@ import { ApiResponse } from '../utils/apiResponse';
 
 type RequestSection = 'body' | 'query' | 'params';
 
-/**
- * Validates a section of the request against a Zod schema.
- * On failure returns 422 with formatted field errors.
- *
- * Usage: router.post('/', validate(createCourseSchema), controller)
- * Usage: router.get('/', validate(paginationSchema, 'query'), controller)
- */
 export const validate =
   (schema: ZodSchema, section: RequestSection = 'body') =>
   (req: Request, res: Response, next: NextFunction): void => {
@@ -22,8 +15,14 @@ export const validate =
       return;
     }
 
-    // Replace the raw section with the parsed (coerced + stripped) data
-    req[section] = result.data;
+    // Express 5: req.query and req.params are read-only getters — use res.locals
+    // req.body is still writable so we keep that working as before
+    if (section === 'body') {
+      req.body = result.data;
+    } else {
+      res.locals[section] = result.data;
+    }
+
     next();
   };
 
