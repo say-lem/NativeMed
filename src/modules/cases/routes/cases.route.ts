@@ -10,6 +10,8 @@ import {
   caseSpecialtyParamsSchema,
 } from '../schema/cases.schema';
 import * as casesController from '../controller/cases.controller';
+import { uploadCaseImage } from '../upload/cases.upload';
+import { parseCaseCreateMultipart } from '../middleware/parseCaseCreateMultipart';
 
 const router = Router();
 
@@ -67,13 +69,26 @@ router.get(
   casesController.getCaseByIdAdmin,
 );
 
-// Create a new case (always starts as a draft unless isPublished: true is set)
+// Create a new case (always starts as a draft unless isPublished: true is set).
+// JSON body, or multipart with `payload` (JSON string) + optional `image` file.
 router.post(
   '/',
   authenticate,
   authorize('admin'),
+  uploadCaseImage.single('image'),
+  parseCaseCreateMultipart,
   validate(createCaseSchema),
   casesController.createCase,
+);
+
+// Upload or replace the optional case cover image
+router.patch(
+  '/:id/image',
+  authenticate,
+  authorize('admin'),
+  validate(caseIdSchema, 'params'),
+  uploadCaseImage.single('image'),
+  casesController.uploadCaseImage,
 );
 
 // Partial update — any combination of top-level or nested patientData fields

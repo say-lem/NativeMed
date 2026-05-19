@@ -40,8 +40,17 @@ export const getCasesBySpecialty = asyncHandler(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const createCase = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const mockCase = await casesService.createCase(req.body, req.user!._id);
+  const mockCase = await casesService.createCase(req.body, req.user!._id, req.file);
   return ApiResponse.created(res, 'Case created', mockCase);
+});
+
+export const uploadCaseImage = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) {
+    return ApiResponse.error(res, 'No image file uploaded', 400);
+  }
+  const { id } = (res.locals.params ?? req.params) as { id: string };
+  const mockCase = await casesService.updateCaseImage(id, req.file);
+  return ApiResponse.success(res, 'Case image updated', { imageUrl: mockCase.imageUrl });
 });
 
 export const getAllCasesAdmin = asyncHandler(async (req: Request, res: Response) => {

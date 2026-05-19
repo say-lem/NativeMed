@@ -19,6 +19,7 @@ export const CloudinaryFolders = {
   COURSE_AUDIOS: 'native-med/courses/audios',
   COURSE_PDFS:   'native-med/courses/pdfs',
   THUMBNAILS:    'native-med/thumbnails',
+  CASE_IMAGES:   'native-med/cases/images',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────

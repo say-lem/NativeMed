@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 parse-cases.py
-Parses the Native Med 246 Mock SCA Case Collection docx
-and outputs cases-seed.json for the TypeScript seeder.
+Parses the Native Med 246 Mock SCA Case Collection docx and outputs
+cases-seed.json with bold (**text**) and italic (*text*) formatting preserved
+as Markdown in all rich-text fields.
 
 Usage:
     python3 parse-cases.py /path/to/cases.docx
@@ -46,6 +47,54 @@ def get_specialty(num):
     return 'General Practice'
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Markdown formatting
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _wrap(text, bold, italic):
+    """Wrap a text fragment with markdown markers, preserving surrounding whitespace."""
+    stripped = text.strip()
+    if not stripped:
+        return text  # pure whitespace — keep as-is, no markers
+    prefix = text[:len(text) - len(text.lstrip())]
+    suffix = text[len(text.rstrip()):]
+    if bold and italic:
+        return f'{prefix}***{stripped}***{suffix}'
+    if bold:
+        return f'{prefix}**{stripped}**{suffix}'
+    if italic:
+        return f'{prefix}*{stripped}*{suffix}'
+    return text
+
+def para_to_markdown(para):
+    """
+    Convert a paragraph's runs into a Markdown string, merging consecutive
+    runs that share the same bold/italic state to avoid redundant markers.
+
+    run.bold / run.italic return:
+        True  — explicitly set on this run
+        None  — inherited from paragraph style (treat as plain)
+        False — explicitly cleared
+    """
+    if not isinstance(para, Paragraph):
+        return ''
+
+    # Merge consecutive runs with the same (bold, italic) pair
+    groups = []   # list of (bold, italic, text)
+    for run in para.runs:
+        b = run.bold  is True
+        i = run.italic is True
+        if groups and groups[-1][0] == b and groups[-1][1] == i:
+            groups[-1] = (b, i, groups[-1][2] + run.text)
+        else:
+            groups.append((b, i, run.text))
+
+    return ''.join(_wrap(t, b, i) for b, i, t in groups).strip()
+
+def strip_md(text):
+    """Remove markdown markers — used when extracting structured data (name, age)."""
+    return re.sub(r'\*+', '', text).strip()
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Document helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -61,6 +110,7 @@ def is_bold(para):
     return bool(runs) and all(r.bold for r in runs)
 
 def ptext(block):
+    """Plain text — used only for section detection and regex extraction."""
     return block.text.strip() if isinstance(block, Paragraph) else ''
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -85,7 +135,7 @@ def extract_toc_titles(doc):
     return titles
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Station block splitting
+# Station splitting
 # ─────────────────────────────────────────────────────────────────────────────
 
 def split_into_stations(doc):
@@ -112,13 +162,9 @@ def split_into_stations(doc):
     return stations
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Section header patterns
-# Each tuple: (bucket_key, compiled_regex, store_header_text_as_content)
-# Sections from 'marking_scheme' onward are "post-patient" sections.
-# The ms_subsection key is used only INSIDE the marking scheme.
+# Section detection patterns
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Patient data sections (appear before marking scheme)
 PATIENT_SECTIONS = [
     ('patient_name',        re.compile(r"patient.{0,10}name|^name\s*:|^caller\s*:", re.I),      True),
     ('age',                 re.compile(r"^age\s*[:\-–]?\s*\d", re.I),                           True),
@@ -129,7 +175,6 @@ PATIENT_SECTIONS = [
     ('patient_story',       re.compile(r"patient.{0,20}story|patient\s*information|role\s*player|patient.{0,10}brief", re.I), False),
 ]
 
-# Post-patient sections (appear after patient story)
 POST_SECTIONS = [
     ('marking_scheme',      re.compile(r"marking\s*scheme", re.I),     False),
     ('example_explanation', re.compile(r"example.{0,10}explan", re.I), False),
@@ -138,13 +183,10 @@ POST_SECTIONS = [
     ('further_reading',     re.compile(r"further\s*(reading|resource)", re.I), False),
 ]
 
-# Sub-sections only valid INSIDE marking scheme
+ALL_SECTIONS = PATIENT_SECTIONS + POST_SECTIONS
 MS_SUBSECTION_RE = re.compile(r"data\s*gather|diagnosis|^history\b", re.I)
 
-ALL_SECTIONS = PATIENT_SECTIONS + POST_SECTIONS
-
 def detect_section(text):
-    """Return (bucket_key, store_text) or (None, False)."""
     for key, pattern, store in ALL_SECTIONS:
         if pattern.search(text):
             return key, store
@@ -157,8 +199,7 @@ def detect_section(text):
 def is_abnormal(result, ref):
     try:
         val_m = re.search(r'([\d.]+)', result)
-        if not val_m:
-            return False
+        if not val_m: return False
         val = float(val_m.group(1))
         m = re.match(r'<\s*([\d.]+)', ref.strip())
         if m: return val >= float(m.group(1))
@@ -181,8 +222,12 @@ def parse_table(table):
         if len(cells) < 3: continue
         test, result, ref = cells[0], cells[1], cells[2]
         if not test or not result: continue
-        rows.append({'test': test, 'result': result, 'referenceRange': ref,
-                     'isAbnormal': is_abnormal(result, ref)})
+        rows.append({
+            'test': test,
+            'result': result,
+            'referenceRange': ref if ref.strip() else 'N/A',
+            'isAbnormal': is_abnormal(result, ref),
+        })
     return rows
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -197,6 +242,7 @@ _AGE_RE = re.compile(
 )
 
 def extract_age_gender(text):
+    """Always call with plain/stripped text, not markdown."""
     m = _AGE_RE.search(text)
     if m:
         age = int(m.group(1) or m.group(3) or m.group(5) or 0)
@@ -228,167 +274,150 @@ def url_to_title(url):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def parse_station(num, consult_type, blocks, toc_titles):
-    # Buckets hold ('text'|'bold'|'table', content) tuples
+    # Buckets store ('text'|'bold'|'table', content) tuples.
+    # 'content' is MARKDOWN text for paragraph items, Table object for tables.
     buckets = {key: [] for key, _, _ in ALL_SECTIONS}
     buckets['_overflow'] = []
 
-    # Marking scheme sub-sections are accumulated separately
-    ms_sections  = []   # list of {'heading': str, 'points': [str]}
-    ms_heading   = 'Data Gathering and Diagnosis'
-    ms_points    = []
-    in_ms        = False   # True only while inside the marking scheme block
-
-    current = '_overflow'
+    ms_sections = []
+    ms_heading  = 'Data Gathering and Diagnosis'
+    ms_points   = []
+    in_ms       = False
+    current     = '_overflow'
 
     for block in blocks:
-        # ── Tables go straight into the current bucket ─────────────────────
         if isinstance(block, Table):
             buckets[current].append(('table', block))
             continue
 
-        text = ptext(block)
-        bold = is_bold(block)
+        plain = ptext(block)          # plain text — for detection only
+        md    = para_to_markdown(block)  # markdown — for storage
+        bold  = is_bold(block)
 
-        if not text:
+        if not plain:
             continue
 
-        # ── Section header detection ────────────────────────────────────────
-        # We check BOTH bold and non-bold lines for name/age patterns
-        # (some stations have non-bold name lines as first paragraph).
-        # For all other sections we require bold to avoid false positives.
+        # ── Non-bold name/age lines (some stations have these un-bolded) ──────
+        is_name_line = bool(re.search(r"patient.{0,10}name|^name\s*:|^caller\s*:", plain, re.I))
+        is_age_line  = bool(re.match(r"age\s*[:\-–]?\s*\d", plain, re.I))
 
-        is_name_line = bool(re.search(
-            r"patient.{0,10}name|^name\s*:|^caller\s*:", text, re.I
-        ))
-        is_age_line = bool(re.match(r"age\s*[:\-–]?\s*\d", text, re.I))
-
-        # Always check name/age on any paragraph (bold or not)
         if not bold and (is_name_line or is_age_line):
             key = 'patient_name' if is_name_line else 'age'
-            buckets[key].append(('text', text))
+            buckets[key].append(('text', md))
             if is_name_line:
                 current = 'patient_name'
             continue
 
         if bold:
-            # ── Inside marking scheme: check for sub-section headers ────────
-            if in_ms and MS_SUBSECTION_RE.search(text):
+            # ── Inside marking scheme: check for sub-section header ──────────
+            if in_ms and MS_SUBSECTION_RE.search(plain):
                 if ms_points:
                     ms_sections.append({'heading': ms_heading, 'points': ms_points})
-                ms_heading = text
+                ms_heading = plain   # headings stored as plain text (structural, not displayed)
                 ms_points  = []
                 continue
 
-            # ── Regular section detection ───────────────────────────────────
-            key, store_text = detect_section(text)
+            key, store_text = detect_section(plain)
 
             if key == 'marking_scheme':
-                # Flush any previous marking scheme section on re-entry
                 if ms_points:
                     ms_sections.append({'heading': ms_heading, 'points': ms_points})
                     ms_points = []
-                in_ms     = True
-                current   = 'marking_scheme'
+                in_ms   = True
+                current = 'marking_scheme'
                 continue
 
             if key and key != 'marking_scheme':
-                # Any recognised section CLOSES the marking scheme block
-                in_ms   = False
+                in_ms   = False   # any post-MS section closes the MS block
                 current = key
                 if store_text:
-                    buckets[key].append(('bold', text))
+                    buckets[key].append(('bold', md))
                 continue
 
-            # ── Bold paragraph that's not a section header ──────────────────
+            # Bold but not a section header
             if in_ms:
-                ms_points.append(text)
+                ms_points.append(md)
             else:
-                buckets[current].append(('bold', text))
+                buckets[current].append(('bold', md))
 
         else:
-            # Non-bold, non-name/age content
+            # Non-bold content
             if in_ms:
-                ms_points.append(text)
+                if plain:
+                    ms_points.append(md)
             else:
-                buckets[current].append(('text', text))
+                if plain:
+                    buckets[current].append(('text', md))
 
-    # Flush last marking scheme section
     if ms_points:
         ms_sections.append({'heading': ms_heading, 'points': ms_points})
 
-    # ── Extract patient name ──────────────────────────────────────────────────
+    # ── Extract patient name (from plain text, not markdown) ─────────────────
     name = ''
     for kind, content in buckets['patient_name']:
-        if not isinstance(content, str): continue
-        # Handle multiline "Patient's name: X\nAge: Y" paragraphs
-        first_line = content.split('\n')[0]
+        plain_content = strip_md(content)
+        first_line = plain_content.split('\n')[0]
         m = re.search(r"(?:patient.{0,10}name|^name|caller)\s*:?\s*(.+)", first_line, re.I)
         if m:
             name = m.group(1).strip().rstrip('*').strip()
             break
 
-    # ── Extract age and gender ────────────────────────────────────────────────
+    # ── Extract age/gender (always strip markdown before regex) ──────────────
     age, gender = 0, 'other'
 
-    # 1. Dedicated age bucket (bold or non-bold "Age: X" lines)
     for kind, content in buckets['age']:
-        if not isinstance(content, str): continue
-        a, g = extract_age_gender(content)
+        a, g = extract_age_gender(strip_md(content))
         if a: age, gender = a, g; break
 
-    # 2. Multiline name+age paragraph (station 100 pattern)
     if age == 0:
         for kind, content in buckets['patient_name']:
-            if not isinstance(content, str) or '\n' not in content: continue
-            for line in content.split('\n')[1:]:
-                a, g = extract_age_gender(line)
-                if a: age, gender = a, g; break
-            if age: break
+            plain_content = strip_md(content)
+            if '\n' in plain_content:
+                for line in plain_content.split('\n')[1:]:
+                    a, g = extract_age_gender(line)
+                    if a: age, gender = a, g; break
+                if age: break
 
-    # 3. Scan first few lines of _overflow for plain "Age: X" text
     if age == 0:
         for kind, content in buckets['_overflow']:
             if not isinstance(content, str): continue
-            if re.match(r'age\s*[:\-–]', content, re.I):
-                a, g = extract_age_gender(content)
+            plain_content = strip_md(content)
+            if re.match(r'age\s*[:\-–]', plain_content, re.I):
+                a, g = extract_age_gender(plain_content)
                 if a: age, gender = a, g; break
 
-    # 4. Last resort: first sentence of patient story
     if age == 0:
         for kind, content in buckets['patient_story'][:3]:
-            if not isinstance(content, str): continue
-            a, g = extract_age_gender(content)
-            if a: age, gender = a, g; break
+            if isinstance(content, str):
+                a, g = extract_age_gender(strip_md(content))
+                if a: age, gender = a, g; break
 
-    # ── Past medical history ──────────────────────────────────────────────────
+    # ── PMH & drug history ────────────────────────────────────────────────────
     noise = {'none', 'nil', 'none recorded', 'nil recorded', 'past medical history',
              'past medical history:', 'not recorded'}
     pmh = [c for k, c in buckets['pmh']
-           if isinstance(c, str) and c.lower().strip('.') not in noise]
+           if isinstance(c, str) and strip_md(c).lower().strip('.') not in noise]
 
-    # ── Drug history ──────────────────────────────────────────────────────────
     drug_noise = re.compile(r'^drug|^medication|^allergy\s*hist', re.I)
     drugs = [c for k, c in buckets['drug_history']
-             if isinstance(c, str) and not drug_noise.match(c)]
+             if isinstance(c, str) and not drug_noise.match(strip_md(c))]
 
     # ── Recent consultation ───────────────────────────────────────────────────
     seen_by = 'GP Surgery'
     notes_parts = []
     for kind, content in buckets['recent_consultation']:
         if not isinstance(content, str): continue
-        if re.search(r'seen\s*by|letter\s*from|telephone\s*consult', content, re.I):
+        if re.search(r'seen\s*by|letter\s*from|telephone\s*consult', strip_md(content), re.I):
             if seen_by == 'GP Surgery':
-                seen_by = content
+                seen_by = strip_md(content)   # seen_by stored as plain — it's a label
             else:
                 notes_parts.append(content)
         else:
             notes_parts.append(content)
-    consult_notes = ' '.join(notes_parts).strip() or 'No recent consultation notes'
+    consult_notes = '\n\n'.join(notes_parts).strip() or 'No recent consultation notes'
 
-    # ── Blood test results ────────────────────────────────────────────────────
-    # Tables can appear in blood_tests OR recent_consultation buckets
-    blood_rows  = []
-    blood_summary_parts = []
+    # ── Blood tests ───────────────────────────────────────────────────────────
+    blood_rows, blood_summary_parts = [], []
     for bname in ('blood_tests', 'recent_consultation'):
         for kind, content in buckets[bname]:
             if kind == 'table':
@@ -396,11 +425,11 @@ def parse_station(num, consult_type, blocks, toc_titles):
             elif isinstance(content, str) and bname == 'blood_tests':
                 blood_summary_parts.append(content)
 
-    blood_summary = ' '.join(blood_summary_parts).strip() or (
+    blood_summary = '\n\n'.join(blood_summary_parts).strip() or (
         'Blood tests reviewed — see table' if blood_rows else 'No blood tests available'
     )
 
-    # ── Patient story ─────────────────────────────────────────────────────────
+    # ── Patient story (markdown preserved) ───────────────────────────────────
     story_parts = [c for k, c in buckets['patient_story'] if isinstance(c, str) and c]
     patient_story = '\n\n'.join(story_parts).strip() or 'No patient story available'
 
@@ -416,11 +445,11 @@ def parse_station(num, consult_type, blocks, toc_titles):
     if not management:
         management = ['Refer to marking scheme for management guidance']
 
-    # ── Example explanation ───────────────────────────────────────────────────
+    # ── Example explanation (markdown preserved — typically italic) ───────────
     exp_parts = [c for k, c in buckets['example_explanation'] if isinstance(c, str) and c]
     example_explanation = '\n\n'.join(exp_parts).strip() or 'No example explanation provided'
 
-    # ── Learning points ───────────────────────────────────────────────────────
+    # ── Learning points (markdown preserved) ─────────────────────────────────
     lp_parts = [c for k, c in buckets['learning_points'] if isinstance(c, str) and c]
     learning_points = '\n\n'.join(lp_parts).strip() or 'No learning points provided'
 
@@ -435,7 +464,6 @@ def parse_station(num, consult_type, blocks, toc_titles):
                 seen_urls.add(url)
                 further_resources.append({'title': url_to_title(url), 'url': url})
 
-    # ── Build output ──────────────────────────────────────────────────────────
     title = toc_titles.get(num, f'Station {num}')
     consult_label = f'{consult_type} Consultation' if consult_type else 'Consultation'
 
@@ -511,24 +539,27 @@ def main():
     if errors:
         print(f'\n⚠️   {len(errors)} warnings:')
         for e in errors[:30]: print(e)
-        if len(errors) > 30: print(f'    ... and {len(errors)-30} more')
     else:
         print('    No warnings — all 246 cases parsed cleanly.')
 
-    with_blood  = sum(1 for c in cases if c['patientData']['bloodTestResults']['rows'])
-    with_res    = sum(1 for c in cases if c['furtherResources'])
-    no_name     = sum(1 for c in cases if c['patientData']['name'].startswith('Patient '))
-    no_age      = sum(1 for c in cases if c['patientData']['age'] == 0)
-    total_blood = sum(len(c['patientData']['bloodTestResults']['rows']) for c in cases)
-    total_res   = sum(len(c['furtherResources']) for c in cases)
+    # Spot-check markdown in station 1
+    s1 = next(c for c in cases if c['stationNumber'] == 1)
+    bold_count  = s1['patientStory'].count('**') // 2
+    italic_count = s1['patientStory'].count('*')
+    print(f'\n🔍  Station 1 spot-check:')
+    print(f'    Bold markers in patientStory: ~{bold_count}')
+    print(f'    Italic chars in exampleExplanation: {s1["exampleExplanation"].count("*")}')
+    print(f'    First 200 chars of patientStory:')
+    print(f'    {repr(s1["patientStory"][:200])}')
 
+    with_bold   = sum(1 for c in cases if '**' in c['patientStory'])
+    with_italic = sum(1 for c in cases if (
+        c['exampleExplanation'].count('*') - c['exampleExplanation'].count('**') * 2 > 0
+    ))
     print(f'\n📊  Summary:')
-    print(f'    Total cases parsed:            {len(cases)}')
-    print(f'    With blood test tables:        {with_blood}  ({total_blood} rows total)')
-    print(f'    With further resources:        {with_res}  ({total_res} links total)')
-    print(f'    Missing name (used fallback):  {no_name}')
-    print(f'    Missing age  (used fallback):  {no_age}')
-    print(f'    Specialties covered:           {len(set(c["specialty"] for c in cases))}')
+    print(f'    Cases with bold in patientStory:          {with_bold}')
+    print(f'    Cases with italic in exampleExplanation:  {with_italic}')
+    print(f'    Total cases: {len(cases)}')
 
 if __name__ == '__main__':
     main()

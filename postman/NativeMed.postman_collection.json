@@ -407,6 +407,20 @@
           }
         },
         {
+          "name": "PATCH /api/v1/cases/:id/image (admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/v1/cases/{{caseId}}/image"
+          }
+        },
+        {
           "name": "PATCH /api/v1/cases/:id/publish (admin)",
           "request": {
             "method": "PATCH",
