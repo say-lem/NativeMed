@@ -31,3 +31,13 @@ export const uploadCaseImage = multer({
     files: 1,
   },
 });
+
+// Used on the create route to accept both cover image and station image in one request
+export const uploadCaseFiles = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 2,
+  },
+});

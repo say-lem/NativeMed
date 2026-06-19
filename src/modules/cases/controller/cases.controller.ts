@@ -40,7 +40,10 @@ export const getCasesBySpecialty = asyncHandler(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const createCase = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const mockCase = await casesService.createCase(req.body, req.user!._id, req.file);
+  const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+  const imageFile        = files?.['image']?.[0]        ?? req.file;
+  const stationImageFile = files?.['stationImage']?.[0];
+  const mockCase = await casesService.createCase(req.body, req.user!._id, imageFile, stationImageFile);
   return ApiResponse.created(res, 'Case created', mockCase);
 });
 
@@ -51,6 +54,15 @@ export const uploadCaseImage = asyncHandler(async (req: Request, res: Response) 
   const { id } = (res.locals.params ?? req.params) as { id: string };
   const mockCase = await casesService.updateCaseImage(id, req.file);
   return ApiResponse.success(res, 'Case image updated', { imageUrl: mockCase.imageUrl });
+});
+
+export const uploadCaseStationImage = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) {
+    return ApiResponse.error(res, 'No station image file uploaded', 400);
+  }
+  const { id } = (res.locals.params ?? req.params) as { id: string };
+  const mockCase = await casesService.updateCaseStationImage(id, req.file);
+  return ApiResponse.success(res, 'Station image updated', { stationImageUrl: mockCase.stationImageUrl });
 });
 
 export const getAllCasesAdmin = asyncHandler(async (req: Request, res: Response) => {

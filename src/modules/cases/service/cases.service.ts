@@ -113,10 +113,16 @@ export const createCase = async (
   input: CreateCaseInput,
   adminId: Types.ObjectId,
   imageFile?: Express.Multer.File,
+  stationImageFile?: Express.Multer.File,
 ) => {
   const mockCase = await MockCase.create({ ...input, createdBy: adminId });
-  if (imageFile) {
-    return updateCaseImage(mockCase._id.toString(), imageFile);
+  const id = mockCase._id.toString();
+
+  if (imageFile) await updateCaseImage(id, imageFile);
+  if (stationImageFile) await updateCaseStationImage(id, stationImageFile);
+
+  if (imageFile || stationImageFile) {
+    return MockCase.findById(id);
   }
   return mockCase;
 };
@@ -158,6 +164,51 @@ export const updateCaseImage = async (
     {
       imageUrl: result.secure_url,
       imagePublicId: result.public_id,
+    },
+    { new: true },
+  );
+
+  if (!updated) throw new AppError('Case not found', 404);
+  return updated;
+};
+
+/**
+ * Upload or replace the optional station image for a case.
+ */
+export const updateCaseStationImage = async (
+  caseId: string,
+  file: Express.Multer.File,
+) => {
+  const mockCase = await MockCase.findById(caseId).select('+stationImagePublicId');
+  if (!mockCase) throw new AppError('Case not found', 404);
+
+  if (mockCase.stationImagePublicId) {
+    try {
+      await cloudinary.uploader.destroy(mockCase.stationImagePublicId, {
+        resource_type: 'image',
+      });
+    } catch (err) {
+      console.error(
+        `⚠️  Could not delete old station image (${mockCase.stationImagePublicId}):`,
+        err,
+      );
+    }
+  }
+
+  const result = await uploadBuffer(file.buffer, {
+    folder: CloudinaryFolders.CASE_STATION_IMAGES,
+    resource_type: 'image',
+    use_filename: false,
+    unique_filename: true,
+    overwrite: false,
+    transformation: [{ width: 800, height: 600, crop: 'fill', gravity: 'auto' }],
+  });
+
+  const updated = await MockCase.findByIdAndUpdate(
+    caseId,
+    {
+      stationImageUrl: result.secure_url,
+      stationImagePublicId: result.public_id,
     },
     { new: true },
   );
@@ -233,22 +284,32 @@ export const updateCase = async (caseId: string, input: UpdateCaseInput) => {
 };
 
 export const deleteCase = async (caseId: string): Promise<void> => {
-  const mockCase = await MockCase.findById(caseId).select('+imagePublicId');
+  const mockCase = await MockCase.findById(caseId).select('+imagePublicId +stationImagePublicId');
   if (!mockCase) throw new AppError('Case not found', 404);
 
+  const destroyPromises: Promise<unknown>[] = [];
+
   if (mockCase.imagePublicId) {
-    try {
-      await cloudinary.uploader.destroy(mockCase.imagePublicId, {
-        resource_type: 'image',
-      });
-    } catch (err) {
-      console.error(
-        `⚠️  Could not delete case image (${mockCase.imagePublicId}):`,
-        err,
-      );
-    }
+    destroyPromises.push(
+      cloudinary.uploader
+        .destroy(mockCase.imagePublicId, { resource_type: 'image' })
+        .catch((err) =>
+          console.error(`⚠️  Could not delete case image (${mockCase.imagePublicId}):`, err),
+        ),
+    );
   }
 
+  if (mockCase.stationImagePublicId) {
+    destroyPromises.push(
+      cloudinary.uploader
+        .destroy(mockCase.stationImagePublicId, { resource_type: 'image' })
+        .catch((err) =>
+          console.error(`⚠️  Could not delete station image (${mockCase.stationImagePublicId}):`, err),
+        ),
+    );
+  }
+
+  await Promise.all(destroyPromises);
   await MockCase.findByIdAndDelete(caseId);
 };
 
@@ -291,6 +352,8 @@ export const duplicateCase = async (
     __v,
     imageUrl: _imageUrl,
     imagePublicId: _imagePublicId,
+    stationImageUrl: _stationImageUrl,
+    stationImagePublicId: _stationImagePublicId,
     ...caseData
   } = source as typeof source & {
     __v?: number;
@@ -298,6 +361,8 @@ export const duplicateCase = async (
     updatedAt?: Date;
     imageUrl?: string;
     imagePublicId?: string;
+    stationImageUrl?: string;
+    stationImagePublicId?: string;
   };
 
   return MockCase.create({

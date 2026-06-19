@@ -4,10 +4,8 @@ import { ApiResponse } from '../../../shared/utils/apiResponse';
 import { AuthRequest } from '../../../shared/types';
 import * as coursesService from '../service/courses.service';
 
-
-
 const getSingleParam = (value: string | string[] | undefined): string =>
-    Array.isArray(value) ? value[0] : (value ?? '');
+  Array.isArray(value) ? value[0] : (value ?? '');
 
 // ── Public ────────────────────────────────────────────────────────────────────
 
@@ -51,9 +49,11 @@ export const uploadThumbnail = asyncHandler(async (req: Request, res: Response) 
   if (!req.file) {
     return ApiResponse.error(res, 'No image file uploaded', 400);
   }
-  const course = await coursesService.updateCourseThumbnail(getSingleParam(req.params.id), req.file);
+  const course = await coursesService.updateCourseThumbnail(
+    getSingleParam(req.params.id),
+    req.file,
+  );
   return ApiResponse.success(res, 'Thumbnail updated', {
     thumbnailUrl: course.thumbnailUrl,
-    thumbnailPublicId: course.thumbnailPublicId,
   });
 });

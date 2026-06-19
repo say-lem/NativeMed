@@ -5,6 +5,9 @@ export const createCourseSchema = z.object({
   description: z.string().min(10).trim(),
   price: z.coerce.number().min(0),
   isPublished: z.boolean().optional(),
+  // Google Drive folder ID — admin copies this from the Drive folder URL
+  // e.g. https://drive.google.com/drive/folders/<THIS_PART>
+  driveFolderId: z.string().min(10, 'Invalid Drive folder ID').optional(),
 });
 
 export const updateCourseSchema = createCourseSchema.partial();

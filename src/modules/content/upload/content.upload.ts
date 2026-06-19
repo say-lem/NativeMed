@@ -4,98 +4,64 @@ import { Request, Response, NextFunction } from 'express';
 import { ApiResponse } from '../../../shared/utils/apiResponse';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Allowed MIME types and their per-type size caps
-// Thumbnail uploads live in courses.upload.ts — not here.
+// Only PDFs are uploaded through the API.
+// Video and audio files are stored on Google Drive by the admin manually —
+// the admin then pastes the share link via POST /content/drive-link.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const ALLOWED_CONTENT_TYPES: Record<string, { maxMb: number; label: string }> = {
-  'video/mp4':       { maxMb: 500, label: 'video' },
-  'video/webm':      { maxMb: 500, label: 'video' },
-  'video/quicktime': { maxMb: 500, label: 'video' },
-  'audio/mpeg':      { maxMb: 50,  label: 'audio' },  // mp3
-  'audio/wav':       { maxMb: 50,  label: 'audio' },
-  'audio/ogg':       { maxMb: 50,  label: 'audio' },
-  'audio/mp4':       { maxMb: 50,  label: 'audio' },  // m4a
-  'audio/x-m4a':     { maxMb: 50,  label: 'audio' },
-  'application/pdf': { maxMb: 20,  label: 'pdf'   },
-};
+const PDF_MIME = new Set(['application/pdf']);
+const MAX_PDF_MB = 50;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// File filter — course content only (video / audio / pdf)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const contentFileFilter = (
+const pdfFileFilter = (
   _req: Request,
   file: Express.Multer.File,
   cb: FileFilterCallback,
 ) => {
-  if (ALLOWED_CONTENT_TYPES[file.mimetype]) {
+  if (PDF_MIME.has(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error(
-      `Unsupported file type "${file.mimetype}". Allowed: mp4, webm, mov, mp3, wav, ogg, m4a, pdf`,
-    ));
+    cb(new Error(`Only PDF files are accepted here. Received: ${file.mimetype}`));
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Multer instance — memory storage
-// Files land in req.file.buffer and are streamed to Cloudinary by the service.
-// Global limit is the video ceiling (500 MB).
-// Per-type enforcement (audio ≤ 50 MB, pdf ≤ 20 MB) happens inside the service
-// after the buffer is available and the mimetype is confirmed.
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const uploadContent = multer({
+// Memory storage — buffer is streamed to Cloudinary by the service layer
+export const uploadPdf = multer({
   storage: multer.memoryStorage(),
-  fileFilter: contentFileFilter,
-  limits: { fileSize: 500 * 1024 * 1024, files: 1 },
+  fileFilter: pdfFileFilter,
+  limits: { fileSize: MAX_PDF_MB * 1024 * 1024, files: 1 },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Upload rate limiter
-// Separate from the global limiter — uploads are far more expensive per request.
-// 10 uploads/hr per IP is generous for a medical education admin panel.
+// Rate limiter — 20 PDF uploads per hour per IP
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const uploadRateLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,  // 1 hour
-  max: 10,
+  windowMs: 60 * 60 * 1000,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Upload limit reached. Try again in an hour.' },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Concurrency guard
-// Memory uploads are expensive: a 500 MB video holds ~500 MB of heap for the
-// entire duration of the Cloudinary upload. This caps simultaneous in-flight
-// uploads to prevent OOM crashes under concurrent load.
-//
-// In production, move large video uploads to a job queue (BullMQ) so the HTTP
-// request returns immediately with a job ID. This guard is a lightweight interim
-// defence until that's in place.
+// Concurrency guard — caps simultaneous in-flight Cloudinary uploads
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MAX_CONCURRENT_UPLOADS = 3;
-let activeUploads = 0;
+const MAX_CONCURRENT = 5;
+let active = 0;
 
 export const concurrencyGuard = (
   _req: Request,
   res: Response,
   next: NextFunction,
 ): void => {
-  if (activeUploads >= MAX_CONCURRENT_UPLOADS) {
-    ApiResponse.error(res, 'Upload service is busy. Please try again in a moment.', 503);
+  if (active >= MAX_CONCURRENT) {
+    ApiResponse.error(res, 'Upload service busy — please try again shortly.', 503);
     return;
   }
-
-  activeUploads++;
-
-  // Decrement on both clean finish and aborted connections
-  const release = () => { activeUploads = Math.max(0, activeUploads - 1); };
+  active++;
+  const release = () => { active = Math.max(0, active - 1); };
   res.on('finish', release);
   res.on('close', release);
-
   next();
 };
