@@ -15,10 +15,12 @@ export default cloudinary;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const CloudinaryFolders = {
-  COURSE_VIDEOS: 'native-med/courses/videos',
-  COURSE_AUDIOS: 'native-med/courses/audios',
-  COURSE_PDFS:   'native-med/courses/pdfs',
-  THUMBNAILS:    'native-med/thumbnails',
+  COURSE_VIDEOS:        'native-med/courses/videos',
+  COURSE_AUDIOS:        'native-med/courses/audios',
+  COURSE_PDFS:          'native-med/courses/pdfs',
+  THUMBNAILS:           'native-med/thumbnails',
+  CASE_IMAGES:          'native-med/cases/images',
+  CASE_STATION_IMAGES:  'native-med/cases/station-images',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────

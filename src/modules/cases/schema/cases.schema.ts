@@ -112,3 +112,8 @@ export const caseSpecialtyParamsSchema = z.object({
 export type CreateCaseInput  = z.infer<typeof createCaseSchema>;
 export type UpdateCaseInput  = z.infer<typeof updateCaseSchema>;
 export type CaseFilterInput  = z.infer<typeof caseFilterSchema>;
+
+/** Optional cover image — set via upload endpoints, not the JSON create/update body */
+export type CaseImageFields = {
+  imageUrl?: string;
+};

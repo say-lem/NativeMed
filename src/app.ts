@@ -12,6 +12,8 @@ import authRoutes from './modules/auth/routes/auth.route';
 import coursesRoutes from './modules/courses/routes/courses.routes';
 import casesRoutes from './modules/cases/routes/cases.route';
 import contentRoutes from './modules/content/routes/content.route';
+import enrollmentsRoutes from './modules/enrollments/routes/enrollments.routes';
+import adminRoutes from './modules/enrollments/routes/admin.routes';
 
 const app = express();
 
@@ -72,6 +74,8 @@ const API = '/api/v1';
 app.use(`${API}/auth`, authLimiter, authRoutes);
 app.use(`${API}/courses`, contentLimiter, coursesRoutes);
 app.use(`${API}/courses/:courseId/content`, contentLimiter, contentRoutes); // nested: /courses/:id/content
+app.use(`${API}/enrollments`, contentLimiter, enrollmentsRoutes);
+app.use(`${API}/admin`, adminLimiter, adminRoutes);
 app.use(`${API}/cases`, generalLimiter, casesRoutes);
 
 // ── 404 handler 

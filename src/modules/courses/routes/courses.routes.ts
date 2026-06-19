@@ -9,8 +9,8 @@ import * as coursesController from '../controller/courses.controller';
 const router = Router();
 
 // ── Public ────────────────────────────────────────────────────────────────────
-router.get('/',coursesController.getAllPublished);
-router.get('/:id',  authenticate, coursesController.getCourseById);
+router.get('/', coursesController.getAllPublished);
+router.get('/:id', coursesController.getCourseById);
 
 // ── Admin only ────────────────────────────────────────────────────────────────
 router.post(

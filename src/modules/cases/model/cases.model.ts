@@ -57,6 +57,10 @@ export interface IMockCase extends Document {
   specialty: string;               // e.g. "Gastroenterology"
   difficulty: 'easy' | 'medium' | 'hard';
   isPublished: boolean;
+  imageUrl?: string;
+  imagePublicId?: string;
+  stationImageUrl?: string;
+  stationImagePublicId?: string;
   createdBy: Types.ObjectId;
 
   // ── Patient data (the candidate's briefing sheet) ────────────────────────
@@ -147,7 +151,11 @@ const mockCaseSchema = new Schema<IMockCase>(
     specialty:        { type: String, required: true, trim: true },
     difficulty:    { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
     isPublished:   { type: Boolean, default: false },
-    createdBy:     { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    imageUrl:             { type: String },
+    imagePublicId:        { type: String, select: false },
+    stationImageUrl:      { type: String },
+    stationImagePublicId: { type: String, select: false },
+    createdBy:            { type: Schema.Types.ObjectId, ref: 'User', required: true },
 
     patientData: { type: patientDataSchema, required: true },
 
@@ -183,5 +191,15 @@ mockCaseSchema.index(
   },
   { name: 'cases_text_search' },
 );
+
+mockCaseSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    const safeRet = ret as unknown as Record<string, unknown>;
+    delete safeRet.imagePublicId;
+    delete safeRet.stationImagePublicId;
+    delete safeRet.__v;
+    return safeRet;
+  },
+});
 
 export const MockCase = model<IMockCase>('MockCase', mockCaseSchema);

@@ -32,6 +32,11 @@ const envSchema = z.object({
 
   // ── Password reset ───────────────────────────────────────────────────────────
   RESET_TOKEN_EXPIRES_MINUTES: z.coerce.number().default(15),
+
+  // ── Google Drive (optional) — service account JSON key fields as env vars ───
+  // Enable Drive API in GCP; share target folders with the service account email.
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().optional(),
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

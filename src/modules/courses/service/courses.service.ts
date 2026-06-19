@@ -106,7 +106,7 @@ export const getAllPublished = async () => {
 };
 
 export const getCourseById = async (courseId: string) => {
-  const course = await Course.findById(courseId);
+  const course = await Course.findOne({ _id: courseId, isPublished: true });
   if (!course) throw new AppError('Course not found', 404);
   return course;
 };
