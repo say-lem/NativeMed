@@ -6,6 +6,8 @@ import { authorize } from '../../../shared/middleware/authorize';
 import { User } from '../../auth/model/auth.model';
 import { Course } from '../../courses/model/courses.model';
 import { Enrollment, IEnrollment } from '../model/enrollments.model';
+import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
+import * as paymentsService from '../../payments/service/payments.service';
 
 const getSingleParam = (value: string | string[] | undefined): string =>
   Array.isArray(value) ? value[0] : (value ?? '');
@@ -23,6 +25,9 @@ const getDashboardStats = asyncHandler(async (_req: Request, res: Response) => {
     paidEnrollments,
     manualEnrollments,
     recentEnrollments,
+    activeSubscriptions,
+    totalRevenue,
+    recentPayments,
   ] = await Promise.all([
     User.countDocuments({ role: 'user' }),
     Course.countDocuments({ isPublished: true }),
@@ -34,17 +39,20 @@ const getDashboardStats = asyncHandler(async (_req: Request, res: Response) => {
       .populate('courseId', 'title')
       .sort({ accessGrantedAt: -1 })
       .limit(10),
+    subscriptionsService.countActiveSubscriptions(),
+    paymentsService.getTotalRevenue(),
+    paymentsService.getRecentPayments(10),
   ]);
 
   return ApiResponse.success(res, 'Dashboard stats fetched', {
     totalUsers,
-    activeSubscriptions: 0,
+    activeSubscriptions,
     totalCourses,
     totalEnrollments,
     paidEnrollments,
     manualEnrollments,
-    totalRevenue: 0,
-    recentPayments: [],
+    totalRevenue,
+    recentPayments,
     recentEnrollments,
   });
 });
@@ -81,12 +89,13 @@ const getUsers = asyncHandler(async (req: Request, res: Response) => {
 const getUserDetail = asyncHandler(async (req: Request, res: Response) => {
   const userId = getSingleParam(req.params.userId);
 
-  const [user, enrollments] = await Promise.all([
+  const [user, enrollments, caseBankSubscription] = await Promise.all([
     User.findById(userId),
     Enrollment.find({ userId })
       .populate('courseId', 'title thumbnailUrl price')
       .populate('grantedBy', 'fullName email')
       .sort({ accessGrantedAt: -1 }),
+    subscriptionsService.getUserCaseBankSubscription(userId),
   ]);
 
   if (!user) return ApiResponse.error(res, 'User not found', 404);
@@ -96,7 +105,7 @@ const getUserDetail = asyncHandler(async (req: Request, res: Response) => {
 
   return ApiResponse.success(res, 'User detail fetched', {
     user,
-    subscription: null,
+    subscription: caseBankSubscription,
     enrollments: {
       active: activeEnrollments,
       revoked: revokedEnrollments,

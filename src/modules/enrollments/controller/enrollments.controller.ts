@@ -57,6 +57,7 @@ export const manualEnroll = asyncHandler(async (req: AuthRequest, res: Response)
     getSingleParam(req.body.userId),
     req.body.courseId,
     req.user!._id,
+    req.body.accessTier,
   );
   return ApiResponse.created(
     res,

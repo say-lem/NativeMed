@@ -1,5 +1,7 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../../shared/utils/appError';
+import { UserRole } from '../../../shared/types';
+import { hasCaseBankAccess } from '../../subscriptions/service/subscriptions.service';
 import { MockCase } from '../model/cases.model';
 import { CreateCaseInput, UpdateCaseInput, CaseFilterInput } from '../schema/cases.schema';
 import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
@@ -29,6 +31,52 @@ const buildFilter = (
 
 const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/** Published cases visible without a Case Bank subscription (by station order). */
+const FREE_CASE_PREVIEW_LIMIT = 5;
+
+const hasFullCaseBankAccess = async (
+  userId: Types.ObjectId,
+  role: UserRole,
+): Promise<boolean> => {
+  if (role === 'admin') return true;
+  return hasCaseBankAccess(userId);
+};
+
+const getFreePreviewCaseIds = async (): Promise<Types.ObjectId[]> => {
+  const cases = await MockCase.find({ isPublished: true })
+    .sort({ stationNumber: 1, createdAt: -1 })
+    .limit(FREE_CASE_PREVIEW_LIMIT)
+    .select('_id')
+    .lean();
+  return cases.map((c) => c._id);
+};
+
+const applyCaseBankAccessFilter = async (
+  filter: Record<string, unknown>,
+  userId: Types.ObjectId,
+  role: UserRole,
+): Promise<Record<string, unknown>> => {
+  if (await hasFullCaseBankAccess(userId, role)) return filter;
+  const freeIds = await getFreePreviewCaseIds();
+  return { ...filter, _id: { $in: freeIds } };
+};
+
+const assertCaseDetailAccess = async (
+  caseId: string,
+  userId: Types.ObjectId,
+  role: UserRole,
+): Promise<void> => {
+  if (await hasFullCaseBankAccess(userId, role)) return;
+  const freeIds = await getFreePreviewCaseIds();
+  const allowed = freeIds.some((id) => id.toString() === caseId);
+  if (!allowed) {
+    throw new AppError(
+      'This case requires a Case Bank subscription. Subscribe to access the full case library.',
+      403,
+    );
+  }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Public / user — published cases only
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,9 +85,16 @@ const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * Paginated list of published cases.
  * Returns a lightweight projection — no patientStory, no markingScheme etc.
  * The heavy content is only fetched on the detail view to keep list responses small.
+ * Non-subscribers only see the first {FREE_CASE_PREVIEW_LIMIT} cases by station number.
  */
-export const getPublishedCases = async (params: CaseFilterInput) => {
-  const filter = buildFilter(params, true);
+
+export const getPublishedCases = async (
+  params: CaseFilterInput,
+  userId: Types.ObjectId,
+  role: UserRole,
+) => {
+  const baseFilter = buildFilter(params, true);
+  const filter = await applyCaseBankAccessFilter(baseFilter, userId, role);
   const { page, limit } = params;
 
   const projection = {
@@ -69,7 +124,12 @@ export const getPublishedCases = async (params: CaseFilterInput) => {
  * Full case detail — all sections included.
  * Only returns published cases to regular users.
  */
-export const getPublishedCaseById = async (caseId: string) => {
+export const getPublishedCaseById = async (
+  caseId: string,
+  userId: Types.ObjectId,
+  role: UserRole,
+) => {
+  await assertCaseDetailAccess(caseId, userId, role);
   const mockCase = await MockCase.findOne({ _id: caseId, isPublished: true });
   if (!mockCase) throw new AppError('Case not found', 404);
   return mockCase;
@@ -84,9 +144,17 @@ export interface PublishedSpecialtyCount {
   count: number;
 }
 
-export const getPublishedSpecialties = async (): Promise<PublishedSpecialtyCount[]> => {
+export const getPublishedSpecialties = async (
+  userId: Types.ObjectId,
+  role: UserRole,
+): Promise<PublishedSpecialtyCount[]> => {
+  const match: Record<string, unknown> = { isPublished: true };
+  if (!(await hasFullCaseBankAccess(userId, role))) {
+    match._id = { $in: await getFreePreviewCaseIds() };
+  }
+
   const rows = await MockCase.aggregate<{ _id: string; count: number }>([
-    { $match: { isPublished: true } },
+    { $match: match },
     { $group: { _id: '$specialty', count: { $sum: 1 } } },
     { $sort: { _id: 1 } },
   ]);
@@ -100,9 +168,11 @@ export const getPublishedSpecialties = async (): Promise<PublishedSpecialtyCount
 export const getCasesBySpecialty = async (
   specialty: string,
   params: CaseFilterInput,
+  userId: Types.ObjectId,
+  role: UserRole,
 ) => {
   const scopedParams: CaseFilterInput = { ...params, specialty };
-  return getPublishedCases(scopedParams);
+  return getPublishedCases(scopedParams, userId, role);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
