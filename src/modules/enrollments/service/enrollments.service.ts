@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../../shared/utils/appError';
+import { CourseAccessTier } from '../../../shared/types';
 import { Enrollment } from '../model/enrollments.model';
 import { Course } from '../../courses/model/courses.model';
 import { User } from '../../auth/model/auth.model';
@@ -45,6 +46,47 @@ export const isEnrolled = async (
   return !!enrollment;
 };
 
+export const getEnrollmentAccessTier = async (
+  userId: Types.ObjectId,
+  courseId: string,
+): Promise<CourseAccessTier | null> => {
+  const enrollment = await Enrollment.findOne({ userId, courseId, isActive: true });
+  return enrollment?.accessTier ?? null;
+};
+
+const MANUAL_PAYMENT_ID = new Types.ObjectId('000000000000000000000000');
+
+const grantDriveIfEligible = async (
+  userId: Types.ObjectId | string,
+  courseId: string,
+  accessTier: CourseAccessTier,
+  message: string,
+) => {
+  if (accessTier !== 'pdf_drive') return;
+
+  try {
+    const ctx = await getDriveContext(userId, courseId);
+    if (ctx) await addDrivePermission(ctx.email, ctx.folderId, message);
+  } catch (err) {
+    console.error('❌  Drive grant failed:', err);
+  }
+};
+
+const revokeDriveIfGranted = async (
+  userId: Types.ObjectId | string,
+  courseId: string,
+  accessTier: CourseAccessTier,
+) => {
+  if (accessTier !== 'pdf_drive') return;
+
+  try {
+    const ctx = await getDriveContext(userId, courseId);
+    if (ctx) await removeDrivePermission(ctx.email, ctx.folderId);
+  } catch (err) {
+    console.error('❌  Drive revoke failed:', err);
+  }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Create enrollment (called by payments service after successful payment)
 // Upsert — safe to call multiple times (Stripe webhook retries, etc.)
@@ -55,25 +97,67 @@ export const createEnrollment = async (
   userId: Types.ObjectId,
   courseId: string,
   paymentId: Types.ObjectId,
+  accessTier: CourseAccessTier = 'pdf_drive',
 ) => {
   const enrollment = await Enrollment.findOneAndUpdate(
     { userId, courseId },
-    { userId, courseId, paymentId, source: 'payment', isActive: true, accessGrantedAt: new Date() },
+    {
+      userId,
+      courseId,
+      paymentId,
+      accessTier,
+      source: 'payment',
+      isActive: true,
+      accessGrantedAt: new Date(),
+    },
     { upsert: true, new: true },
   );
 
-  try {
-    const ctx = await getDriveContext(userId, courseId);
-    if (ctx) {
-      await addDrivePermission(
-        ctx.email,
-        ctx.folderId,
-        'You have been enrolled in a Native Med course. ' +
+  await grantDriveIfEligible(
+    userId,
+    courseId,
+    accessTier,
+    'You have been enrolled in a Native Med course. ' +
+      'You now have access to the course audio and video materials on Google Drive.',
+  );
+
+  return enrollment;
+};
+
+export const createEnrollmentFromSubscription = async (
+  userId: Types.ObjectId,
+  courseId: string,
+  subscriptionId: Types.ObjectId,
+  accessTier: CourseAccessTier,
+) => {
+  const existing = await Enrollment.findOne({ userId, courseId });
+  const previousTier = existing?.accessTier;
+
+  const enrollment = await Enrollment.findOneAndUpdate(
+    { userId, courseId },
+    {
+      userId,
+      courseId,
+      paymentId: MANUAL_PAYMENT_ID,
+      subscriptionId,
+      accessTier,
+      source: 'payment',
+      isActive: true,
+      accessGrantedAt: new Date(),
+    },
+    { upsert: true, new: true },
+  );
+
+  if (accessTier === 'pdf_drive') {
+    await grantDriveIfEligible(
+      userId,
+      courseId,
+      accessTier,
+      'You have been enrolled in a Native Med course. ' +
         'You now have access to the course audio and video materials on Google Drive.',
-      );
-    }
-  } catch (err) {
-    console.error('❌  Drive grant failed after enrollment creation:', err);
+    );
+  } else if (previousTier === 'pdf_drive' && accessTier === 'pdf_only') {
+    await revokeDriveIfGranted(userId, courseId, 'pdf_drive');
   }
 
   return enrollment;
@@ -87,6 +171,7 @@ export const manualEnroll = async (
   userId: string,
   courseId: string,
   grantedBy: Types.ObjectId,
+  accessTier: CourseAccessTier = 'pdf_drive',
 ) => {
   const user = await User.findById(userId);
   if (!user) throw new AppError('User not found', 404);
@@ -98,35 +183,28 @@ export const manualEnroll = async (
   if (existing?.isActive) throw new AppError('User is already enrolled in this course', 409);
 
   // Use a placeholder ObjectId for paymentId since there's no payment
-  const MANUAL_PAYMENT_ID = new Types.ObjectId('000000000000000000000000');
-
   const enrollment = await Enrollment.findOneAndUpdate(
     { userId, courseId },
     {
       userId,
       courseId,
       paymentId: MANUAL_PAYMENT_ID,
+      accessTier,
       source: 'manual',
       isActive: true,
       accessGrantedAt: new Date(),
-      grantedBy,        // stored for audit trail
+      grantedBy,
     },
     { upsert: true, new: true },
   );
 
-  try {
-    const ctx = await getDriveContext(userId, courseId);
-    if (ctx) {
-      await addDrivePermission(
-        ctx.email,
-        ctx.folderId,
-        'You have been granted complimentary access to a Native Med course. ' +
-        'You now have access to the course audio and video materials on Google Drive.',
-      );
-    }
-  } catch (err) {
-    console.error('❌  Drive grant failed after manual enrollment:', err);
-  }
+  await grantDriveIfEligible(
+    userId,
+    courseId,
+    accessTier,
+    'You have been granted complimentary access to a Native Med course. ' +
+      'You now have access to the course audio and video materials on Google Drive.',
+  );
 
   return enrollment;
 };
@@ -147,12 +225,7 @@ export const revokeEnrollment = async (
   enrollment.isActive = false;
   await enrollment.save();
 
-  try {
-    const ctx = await getDriveContext(enrollment.userId as Types.ObjectId, courseId);
-    if (ctx) await removeDrivePermission(ctx.email, ctx.folderId);
-  } catch (err) {
-    console.error('❌  Drive revoke failed after enrollment revocation:', err);
-  }
+  await revokeDriveIfGranted(enrollment.userId as Types.ObjectId, courseId, enrollment.accessTier);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,22 +242,13 @@ export const restoreEnrollment = async (enrollmentId: string) => {
   enrollment.accessGrantedAt = new Date();
   await enrollment.save();
 
-  try {
-    const ctx = await getDriveContext(
-      enrollment.userId as Types.ObjectId,
-      enrollment.courseId.toString(),
-    );
-    if (ctx) {
-      await addDrivePermission(
-        ctx.email,
-        ctx.folderId,
-        'Your access to a Native Med course has been restored. ' +
-        'You can once again access the course audio and video materials on Google Drive.',
-      );
-    }
-  } catch (err) {
-    console.error('❌  Drive grant failed after enrollment restore:', err);
-  }
+  await grantDriveIfEligible(
+    enrollment.userId as Types.ObjectId,
+    enrollment.courseId.toString(),
+    enrollment.accessTier,
+    'Your access to a Native Med course has been restored. ' +
+      'You can once again access the course audio and video materials on Google Drive.',
+  );
 
   return enrollment;
 };
@@ -202,10 +266,14 @@ export const getMyEnrollments = async (userId: Types.ObjectId) => {
 export const checkEnrollment = async (
   userId: Types.ObjectId,
   courseId: string,
-): Promise<{ enrolled: boolean; accessGrantedAt?: Date }> => {
+): Promise<{ enrolled: boolean; accessTier?: CourseAccessTier; accessGrantedAt?: Date }> => {
   const enrollment = await Enrollment.findOne({ userId, courseId, isActive: true });
   if (!enrollment) return { enrolled: false };
-  return { enrolled: true, accessGrantedAt: enrollment.accessGrantedAt };
+  return {
+    enrolled: true,
+    accessTier: enrollment.accessTier,
+    accessGrantedAt: enrollment.accessGrantedAt,
+  };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

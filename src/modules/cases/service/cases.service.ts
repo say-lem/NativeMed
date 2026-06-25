@@ -1,5 +1,7 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../../shared/utils/appError';
+import { UserRole } from '../../../shared/types';
+import { hasCaseBankAccess } from '../../subscriptions/service/subscriptions.service';
 import { MockCase } from '../model/cases.model';
 import { CreateCaseInput, UpdateCaseInput, CaseFilterInput } from '../schema/cases.schema';
 import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
@@ -38,7 +40,24 @@ const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * Returns a lightweight projection — no patientStory, no markingScheme etc.
  * The heavy content is only fetched on the detail view to keep list responses small.
  */
-export const getPublishedCases = async (params: CaseFilterInput) => {
+const assertCaseBankAccess = async (
+  userId: Types.ObjectId,
+  role: UserRole,
+): Promise<void> => {
+  if (role === 'admin') return;
+  if (await hasCaseBankAccess(userId)) return;
+  throw new AppError(
+    'Case Bank access requires an active subscription. Subscribe to browse cases.',
+    403,
+  );
+};
+
+export const getPublishedCases = async (
+  params: CaseFilterInput,
+  userId: Types.ObjectId,
+  role: UserRole,
+) => {
+  await assertCaseBankAccess(userId, role);
   const filter = buildFilter(params, true);
   const { page, limit } = params;
 
@@ -69,7 +88,12 @@ export const getPublishedCases = async (params: CaseFilterInput) => {
  * Full case detail — all sections included.
  * Only returns published cases to regular users.
  */
-export const getPublishedCaseById = async (caseId: string) => {
+export const getPublishedCaseById = async (
+  caseId: string,
+  userId: Types.ObjectId,
+  role: UserRole,
+) => {
+  await assertCaseBankAccess(userId, role);
   const mockCase = await MockCase.findOne({ _id: caseId, isPublished: true });
   if (!mockCase) throw new AppError('Case not found', 404);
   return mockCase;
@@ -84,7 +108,11 @@ export interface PublishedSpecialtyCount {
   count: number;
 }
 
-export const getPublishedSpecialties = async (): Promise<PublishedSpecialtyCount[]> => {
+export const getPublishedSpecialties = async (
+  userId: Types.ObjectId,
+  role: UserRole,
+): Promise<PublishedSpecialtyCount[]> => {
+  await assertCaseBankAccess(userId, role);
   const rows = await MockCase.aggregate<{ _id: string; count: number }>([
     { $match: { isPublished: true } },
     { $group: { _id: '$specialty', count: { $sum: 1 } } },
@@ -100,9 +128,11 @@ export const getPublishedSpecialties = async (): Promise<PublishedSpecialtyCount
 export const getCasesBySpecialty = async (
   specialty: string,
   params: CaseFilterInput,
+  userId: Types.ObjectId,
+  role: UserRole,
 ) => {
   const scopedParams: CaseFilterInput = { ...params, specialty };
-  return getPublishedCases(scopedParams);
+  return getPublishedCases(scopedParams, userId, role);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

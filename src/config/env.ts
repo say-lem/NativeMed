@@ -37,6 +37,17 @@ const envSchema = z.object({
   // Enable Drive API in GCP; share target folders with the service account email.
   GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional(),
+
+  // ── Stripe (required for payments) ─────────────────────────────────────────
+  STRIPE_SECRET_KEY: z.string().min(1, 'STRIPE_SECRET_KEY is required'),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1, 'STRIPE_WEBHOOK_SECRET is required'),
+
+  // Stripe Price IDs — create products/prices in the Stripe Dashboard first
+  STRIPE_PRICE_CASE_BANK_MONTHLY: z.string().min(1, 'STRIPE_PRICE_CASE_BANK_MONTHLY is required'),
+  STRIPE_PRICE_COURSE_PDF_MONTHLY: z.string().min(1, 'STRIPE_PRICE_COURSE_PDF_MONTHLY is required'),
+  STRIPE_PRICE_COURSE_PDF_QUARTERLY: z.string().min(1, 'STRIPE_PRICE_COURSE_PDF_QUARTERLY is required'),
+  STRIPE_PRICE_COURSE_FULL_MONTHLY: z.string().min(1, 'STRIPE_PRICE_COURSE_FULL_MONTHLY is required'),
+  STRIPE_PRICE_COURSE_FULL_QUARTERLY: z.string().min(1, 'STRIPE_PRICE_COURSE_FULL_QUARTERLY is required'),
 });
 
 const parsed = envSchema.safeParse(process.env);

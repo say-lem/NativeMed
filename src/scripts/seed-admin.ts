@@ -16,7 +16,6 @@
  */
 
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -72,16 +71,11 @@ const seed = async () => {
     return;
   }
 
-  // ── Hash password manually — pre-save hook won't fire on Model.create ──────
-  // (Actually the pre-save hook DOES fire on create, but we hash here anyway
-  //  so the script is self-contained and doesn't rely on hook ordering.)
-  const salt         = await bcrypt.genSalt(12);
-  const passwordHash = await bcrypt.hash(SEED_ADMIN_PASSWORD, salt);
-
+  // Pass plain password — the User model pre-save hook hashes it once.
   const admin = await User.create({
     fullName:          SEED_ADMIN_NAME.trim(),
     email:             SEED_ADMIN_EMAIL.toLowerCase().trim(),
-    passwordHash,
+    passwordHash:      SEED_ADMIN_PASSWORD,
     phone:             SEED_ADMIN_PHONE.trim(),
     role:              'admin',
     isActive:          true,

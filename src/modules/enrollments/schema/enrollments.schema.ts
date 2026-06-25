@@ -10,8 +10,9 @@ export const revokeEnrollmentSchema = z.object({
 
 // ── Admin: manually enroll a user (comped / gifted access, no payment needed) ─
 export const manualEnrollSchema = z.object({
-  userId:   mongoId,
-  courseId: mongoId,
+  userId:     mongoId,
+  courseId:   mongoId,
+  accessTier: z.enum(['pdf_only', 'pdf_drive']).default('pdf_drive'),
 });
 
 // ── Admin: restore a previously revoked enrollment ───────────────────────────

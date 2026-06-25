@@ -9,20 +9,20 @@ import { CaseFilterInput, caseFilterSchema } from '../schema/cases.schema';
 // Public / user controllers — published cases only
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const getPublishedCases = asyncHandler(async (req: Request, res: Response) => {
+export const getPublishedCases = asyncHandler(async (req: AuthRequest, res: Response) => {
   const params = (res.locals.query ?? req.query) as CaseFilterInput;
-  const result = await casesService.getPublishedCases(params);
+  const result = await casesService.getPublishedCases(params, req.user!._id, req.user!.role);
   return ApiResponse.success(res, 'Cases fetched', result);
 });
 
-export const getPublishedCaseById = asyncHandler(async (req: Request, res: Response) => {
+export const getPublishedCaseById = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = (res.locals.params ?? req.params) as { id: string };
-  const mockCase = await casesService.getPublishedCaseById(id);
+  const mockCase = await casesService.getPublishedCaseById(id, req.user!._id, req.user!.role);
   return ApiResponse.success(res, 'Case fetched', mockCase);
 });
 
-export const getPublishedSpecialties = asyncHandler(async (_req: Request, res: Response) => {
-  const specialties = await casesService.getPublishedSpecialties();
+export const getPublishedSpecialties = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const specialties = await casesService.getPublishedSpecialties(req.user!._id, req.user!.role);
   return ApiResponse.success(res, 'Specialties fetched', specialties);
 });
 
@@ -30,7 +30,12 @@ export const getCasesBySpecialty = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const { specialty } = (res.locals.params ?? req.params) as { specialty: string };
     const params = (res.locals.query ?? req.query) as CaseFilterInput;
-    const result = await casesService.getCasesBySpecialty(specialty, params);
+    const result = await casesService.getCasesBySpecialty(
+      specialty,
+      params,
+      req.user!._id,
+      req.user!.role,
+    );
     return ApiResponse.success(res, 'Cases fetched successfully', result);
   },
 );

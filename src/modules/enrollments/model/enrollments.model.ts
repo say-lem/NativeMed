@@ -1,4 +1,5 @@
 import { Schema, model, Document, Types } from 'mongoose';
+import { CourseAccessTier } from '../../../shared/types';
 
 export type EnrollmentSource = 'payment' | 'manual';
 
@@ -7,8 +8,10 @@ export interface IEnrollment extends Document {
   userId: Types.ObjectId;
   courseId: Types.ObjectId;
   paymentId: Types.ObjectId;
-  source: EnrollmentSource;  // how access was granted
-  grantedBy?: Types.ObjectId; // populated when source = 'manual' (admin who granted it)
+  subscriptionId?: Types.ObjectId;
+  accessTier: CourseAccessTier;
+  source: EnrollmentSource;
+  grantedBy?: Types.ObjectId;
   accessGrantedAt: Date;
   isActive: boolean;
   createdAt: Date;
@@ -17,15 +20,13 @@ export interface IEnrollment extends Document {
 
 const enrollmentSchema = new Schema<IEnrollment>(
   {
-    userId:    { type: Schema.Types.ObjectId, ref: 'User',    required: true },
-    courseId:  { type: Schema.Types.ObjectId, ref: 'Course',  required: true },
-    paymentId: { type: Schema.Types.ObjectId, ref: 'Payment', required: true },
-    source:    {
-      type:    String,
-      enum:    ['payment', 'manual'],
-      default: 'payment',
-    },
-    grantedBy:       { type: Schema.Types.ObjectId, ref: 'User' }, // admin who manually enrolled
+    userId:         { type: Schema.Types.ObjectId, ref: 'User',         required: true },
+    courseId:       { type: Schema.Types.ObjectId, ref: 'Course',       required: true },
+    paymentId:      { type: Schema.Types.ObjectId, ref: 'Payment',      required: true },
+    subscriptionId: { type: Schema.Types.ObjectId, ref: 'Subscription' },
+    accessTier:     { type: String, enum: ['pdf_only', 'pdf_drive'], default: 'pdf_drive' },
+    source:         { type: String, enum: ['payment', 'manual'], default: 'payment' },
+    grantedBy:       { type: Schema.Types.ObjectId, ref: 'User' },
     accessGrantedAt: { type: Date, default: Date.now },
     isActive:        { type: Boolean, default: true },
   },
