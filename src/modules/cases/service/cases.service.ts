@@ -31,6 +31,52 @@ const buildFilter = (
 
 const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/** Published cases visible without a Case Bank subscription (by station order). */
+const FREE_CASE_PREVIEW_LIMIT = 5;
+
+const hasFullCaseBankAccess = async (
+  userId: Types.ObjectId,
+  role: UserRole,
+): Promise<boolean> => {
+  if (role === 'admin') return true;
+  return hasCaseBankAccess(userId);
+};
+
+const getFreePreviewCaseIds = async (): Promise<Types.ObjectId[]> => {
+  const cases = await MockCase.find({ isPublished: true })
+    .sort({ stationNumber: 1, createdAt: -1 })
+    .limit(FREE_CASE_PREVIEW_LIMIT)
+    .select('_id')
+    .lean();
+  return cases.map((c) => c._id);
+};
+
+const applyCaseBankAccessFilter = async (
+  filter: Record<string, unknown>,
+  userId: Types.ObjectId,
+  role: UserRole,
+): Promise<Record<string, unknown>> => {
+  if (await hasFullCaseBankAccess(userId, role)) return filter;
+  const freeIds = await getFreePreviewCaseIds();
+  return { ...filter, _id: { $in: freeIds } };
+};
+
+const assertCaseDetailAccess = async (
+  caseId: string,
+  userId: Types.ObjectId,
+  role: UserRole,
+): Promise<void> => {
+  if (await hasFullCaseBankAccess(userId, role)) return;
+  const freeIds = await getFreePreviewCaseIds();
+  const allowed = freeIds.some((id) => id.toString() === caseId);
+  if (!allowed) {
+    throw new AppError(
+      'This case requires a Case Bank subscription. Subscribe to access the full case library.',
+      403,
+    );
+  }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Public / user — published cases only
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,26 +85,16 @@ const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * Paginated list of published cases.
  * Returns a lightweight projection — no patientStory, no markingScheme etc.
  * The heavy content is only fetched on the detail view to keep list responses small.
+ * Non-subscribers only see the first {FREE_CASE_PREVIEW_LIMIT} cases by station number.
  */
-const assertCaseBankAccess = async (
-  userId: Types.ObjectId,
-  role: UserRole,
-): Promise<void> => {
-  if (role === 'admin') return;
-  if (await hasCaseBankAccess(userId)) return;
-  throw new AppError(
-    'Case Bank access requires an active subscription. Subscribe to browse cases.',
-    403,
-  );
-};
 
 export const getPublishedCases = async (
   params: CaseFilterInput,
   userId: Types.ObjectId,
   role: UserRole,
 ) => {
-  await assertCaseBankAccess(userId, role);
-  const filter = buildFilter(params, true);
+  const baseFilter = buildFilter(params, true);
+  const filter = await applyCaseBankAccessFilter(baseFilter, userId, role);
   const { page, limit } = params;
 
   const projection = {
@@ -93,7 +129,7 @@ export const getPublishedCaseById = async (
   userId: Types.ObjectId,
   role: UserRole,
 ) => {
-  await assertCaseBankAccess(userId, role);
+  await assertCaseDetailAccess(caseId, userId, role);
   const mockCase = await MockCase.findOne({ _id: caseId, isPublished: true });
   if (!mockCase) throw new AppError('Case not found', 404);
   return mockCase;
@@ -112,9 +148,13 @@ export const getPublishedSpecialties = async (
   userId: Types.ObjectId,
   role: UserRole,
 ): Promise<PublishedSpecialtyCount[]> => {
-  await assertCaseBankAccess(userId, role);
+  const match: Record<string, unknown> = { isPublished: true };
+  if (!(await hasFullCaseBankAccess(userId, role))) {
+    match._id = { $in: await getFreePreviewCaseIds() };
+  }
+
   const rows = await MockCase.aggregate<{ _id: string; count: number }>([
-    { $match: { isPublished: true } },
+    { $match: match },
     { $group: { _id: '$specialty', count: { $sum: 1 } } },
     { $sort: { _id: 1 } },
   ]);
