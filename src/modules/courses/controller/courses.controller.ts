@@ -3,6 +3,7 @@ import { asyncHandler } from '../../../shared/middleware/asyncHandler';
 import { ApiResponse } from '../../../shared/utils/apiResponse';
 import { AuthRequest } from '../../../shared/types';
 import * as coursesService from '../service/courses.service';
+import { CourseFilterInput } from '../schema/courses.schema';
 
 const getSingleParam = (value: string | string[] | undefined): string =>
   Array.isArray(value) ? value[0] : (value ?? '');
@@ -20,6 +21,17 @@ export const getCourseById = asyncHandler(async (req: Request, res: Response) =>
 });
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
+
+export const getAllCoursesAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const params = (res.locals.query ?? req.query) as CourseFilterInput;
+  const result = await coursesService.getAllCoursesAdmin(params);
+  return ApiResponse.success(res, 'All courses fetched', result);
+});
+
+export const getCourseByIdAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const course = await coursesService.getCourseByIdAdmin(getSingleParam(req.params.id));
+  return ApiResponse.success(res, 'Course fetched', course);
+});
 
 export const createCourse = asyncHandler(async (req: AuthRequest, res: Response) => {
   const course = await coursesService.createCourse(req.body, req.user!._id);

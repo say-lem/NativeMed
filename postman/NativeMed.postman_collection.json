@@ -2,6 +2,7 @@
   "info": {
     "_postman_id": "c7cf8264-6b5e-4f33-aef5-0d13c5bf0a90",
     "name": "NativeMed API",
+    "description": "Native Med REST API (v1). Import `NativeMed.postman_environment.json` and run **Auth → Login** first to populate `accessToken` / `refreshToken`. Collection variables: `courseId`, `contentId`, `caseId`, `userId`, `enrollmentId`.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -217,11 +218,35 @@
           }
         },
         {
-          "name": "GET /api/v1/courses/:id (auth)",
+          "name": "GET /api/v1/courses/:id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/courses/{{courseId}}"
+          }
+        },
+        {
+          "name": "GET /api/v1/courses/admin/all (admin, query)",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/api/v1/courses/{{courseId}}"
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/courses/admin/all?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "courses", "admin", "all"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/courses/admin/:id (admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/v1/courses/admin/{{courseId}}"
           }
         },
         {
@@ -301,21 +326,35 @@
           }
         },
         {
-          "name": "POST /api/v1/courses/:courseId/content (admin, multipart)",
+          "name": "POST /api/v1/courses/:courseId/content/upload-pdf (admin, multipart)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "file", "type": "file", "src": "" },
-                { "key": "title", "type": "text", "value": "Lesson 1" },
-                { "key": "type", "type": "text", "value": "video" },
+                { "key": "file", "type": "file", "src": "", "description": "PDF file (uploaded to Cloudinary)" },
+                { "key": "title", "type": "text", "value": "Lesson 1 PDF" },
                 { "key": "order", "type": "text", "value": "0" },
-                { "key": "duration", "type": "text", "value": "0" }
+                { "key": "type", "type": "text", "value": "pdf" }
               ]
             },
-            "url": "{{baseUrl}}/api/v1/courses/{{courseId}}/content"
+            "url": "{{baseUrl}}/api/v1/courses/{{courseId}}/content/upload-pdf"
+          }
+        },
+        {
+          "name": "POST /api/v1/courses/:courseId/content/drive-link (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Lecture 1\",\n  \"type\": \"video\",\n  \"fileUrl\": \"https://drive.google.com/file/d/EXAMPLE/view\",\n  \"order\": 0,\n  \"duration\": 3600\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/courses/{{courseId}}/content/drive-link"
           }
         },
         {
@@ -607,6 +646,152 @@
             "method": "PATCH",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": "{{baseUrl}}/api/v1/enrollments/{{enrollmentId}}/restore"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "GET /api/v1/payments/plans",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/payments/plans"
+          }
+        },
+        {
+          "name": "POST /api/v1/payments/checkout — Case Bank (auth)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"case_bank\",\n  \"interval\": \"monthly\",\n  \"successUrl\": \"http://localhost:3000/payment/success\",\n  \"cancelUrl\": \"http://localhost:3000/payment/cancel\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/payments/checkout"
+          }
+        },
+        {
+          "name": "POST /api/v1/payments/checkout — Course PDF (auth)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"course\",\n  \"tier\": \"pdf_only\",\n  \"interval\": \"monthly\",\n  \"courseId\": \"{{courseId}}\",\n  \"successUrl\": \"http://localhost:3000/payment/success\",\n  \"cancelUrl\": \"http://localhost:3000/payment/cancel\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/payments/checkout"
+          }
+        },
+        {
+          "name": "POST /api/v1/payments/checkout — Course PDF + Drive (auth)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"course\",\n  \"tier\": \"pdf_drive\",\n  \"interval\": \"quarterly\",\n  \"courseId\": \"{{courseId}}\",\n  \"successUrl\": \"http://localhost:3000/payment/success\",\n  \"cancelUrl\": \"http://localhost:3000/payment/cancel\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/payments/checkout"
+          }
+        },
+        {
+          "name": "POST /api/v1/payments/billing-portal (auth)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"returnUrl\": \"http://localhost:3000/account/billing\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/payments/billing-portal"
+          }
+        },
+        {
+          "name": "GET /api/v1/payments/me (auth)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/me?page=1&limit=20",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /api/v1/payments/webhook (Stripe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Stripe-Signature", "value": "PASTE_STRIPE_SIGNATURE", "description": "Required — use Stripe CLI: stripe listen --forward-to localhost:5000/api/v1/payments/webhook" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_example\",\n  \"object\": \"event\",\n  \"type\": \"checkout.session.completed\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/payments/webhook",
+            "description": "Stripe sends signed webhooks with a raw JSON body. For local testing, use the Stripe CLI to forward events rather than calling this request manually."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "item": [
+        {
+          "name": "GET /api/v1/subscriptions/plans",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/subscriptions/plans"
+          }
+        },
+        {
+          "name": "GET /api/v1/subscriptions/me (auth)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/v1/subscriptions/me"
+          }
+        },
+        {
+          "name": "GET /api/v1/subscriptions/case-bank/status (auth)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/v1/subscriptions/case-bank/status"
+          }
+        },
+        {
+          "name": "GET /api/v1/subscriptions/course/:courseId/status (auth)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/v1/subscriptions/course/{{courseId}}/status"
+          }
+        },
+        {
+          "name": "GET /api/v1/subscriptions/subscribers (admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/v1/subscriptions/subscribers"
           }
         }
       ]

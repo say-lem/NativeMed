@@ -2,7 +2,12 @@ import { Router } from 'express';
 import { authenticate } from '../../../shared/middleware/authenticate';
 import { authorize } from '../../../shared/middleware/authorize';
 import { validate } from '../../../shared/middleware/validate';
-import { createCourseSchema, updateCourseSchema } from '../schema/courses.schema';
+import {
+  createCourseSchema,
+  updateCourseSchema,
+  courseFilterSchema,
+  courseIdSchema,
+} from '../schema/courses.schema';
 import { uploadCourseThumbnail } from '../upload/courses.upload';
 import * as coursesController from '../controller/courses.controller';
 
@@ -10,6 +15,23 @@ const router = Router();
 
 // ── Public ────────────────────────────────────────────────────────────────────
 router.get('/', coursesController.getAllPublished);
+
+// ── Admin reads (before /:id so /admin/* is not captured as an id) ──────────
+router.get(
+  '/admin/all',
+  authenticate,
+  authorize('admin'),
+  validate(courseFilterSchema, 'query'),
+  coursesController.getAllCoursesAdmin,
+);
+router.get(
+  '/admin/:id',
+  authenticate,
+  authorize('admin'),
+  validate(courseIdSchema, 'params'),
+  coursesController.getCourseByIdAdmin,
+);
+
 router.get('/:id', coursesController.getCourseById);
 
 // ── Admin only ────────────────────────────────────────────────────────────────
