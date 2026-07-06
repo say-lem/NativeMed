@@ -1,7 +1,7 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../../shared/utils/appError';
 import { Course } from '../model/courses.model';
-import { CreateCourseInput, UpdateCourseInput } from '../schema/courses.schema';
+import { CreateCourseInput, UpdateCourseInput, CourseFilterInput } from '../schema/courses.schema';
 import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
@@ -97,6 +97,41 @@ export const togglePublish = async (courseId: string) => {
   if (!course) throw new AppError('Course not found', 404);
   course.isPublished = !course.isPublished;
   return course.save();
+};
+
+/**
+ * Admin list — includes unpublished courses.
+ */
+export const getAllCoursesAdmin = async (params: CourseFilterInput) => {
+  const filter: Record<string, unknown> = {};
+  if (params.search) {
+    filter.$or = [
+      { title: { $regex: params.search, $options: 'i' } },
+      { description: { $regex: params.search, $options: 'i' } },
+    ];
+  }
+
+  const { page, limit } = params;
+
+  const [items, total] = await Promise.all([
+    Course.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('createdBy', 'fullName email'),
+    Course.countDocuments(filter),
+  ]);
+
+  return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+};
+
+/**
+ * Admin detail — returns unpublished courses too.
+ */
+export const getCourseByIdAdmin = async (courseId: string) => {
+  const course = await Course.findById(courseId).populate('createdBy', 'fullName email');
+  if (!course) throw new AppError('Course not found', 404);
+  return course;
 };
 
 // ── Public / user ─────────────────────────────────────────────────────────────
