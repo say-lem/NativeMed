@@ -12,7 +12,7 @@ import { User } from '../../auth/model/auth.model';
 import { Course } from '../../courses/model/courses.model';
 import { Payment } from '../model/payments.model';
 import { ISubscription, Subscription } from '../../subscriptions/model/subscriptions.model';
-import { resolvePlanPrice } from '../../subscriptions/constants/plans';
+import { resolveCaseBankPlanPrice } from '../../subscriptions/constants/plans';
 import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
 import {
@@ -38,17 +38,6 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
 
   await subscriptionsService.assertNoConflictingSubscription(userId, type, courseId);
 
-  if (type === 'course') {
-    if (!courseId) throw new AppError('courseId is required for course subscriptions', 400);
-    if (!tier) throw new AppError('tier is required for course subscriptions', 400);
-
-    const course = await Course.findById(courseId);
-    if (!course) throw new AppError('Course not found', 404);
-    if (!course.isPublished) throw new AppError('This course is not available for purchase', 400);
-  }
-
-  const planPrice = resolvePlanPrice(type, interval, tier);
-
   const successUrl = input.successUrl ?? `${env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = input.cancelUrl ?? `${env.CLIENT_URL}/payment/cancelled`;
 
@@ -60,10 +49,61 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
   if (courseId) metadata.courseId = courseId;
   if (tier) metadata.tier = tier;
 
+  let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
+
+  if (type === 'course') {
+    if (!courseId) throw new AppError('courseId is required for course subscriptions', 400);
+    if (!tier) throw new AppError('tier is required for course subscriptions', 400);
+
+    const course = await Course.findById(courseId).select(
+      'title priceMonthly priceQuarterly isPublished',
+    );
+    if (!course) throw new AppError('Course not found', 404);
+    if (!course.isPublished) throw new AppError('This course is not available for purchase', 400);
+
+    const priceGbp =
+      interval === 'monthly' ? course.priceMonthly : course.priceQuarterly;
+    if (priceGbp == null) {
+      throw new AppError(
+        `This course is not available for ${interval} billing`,
+        400,
+      );
+    }
+
+    const unitAmount = Math.round(priceGbp * 100);
+    if (!Number.isFinite(unitAmount) || unitAmount < 50) {
+      throw new AppError('This course does not have a valid purchase price', 400);
+    }
+
+    const tierLabel = tier === 'pdf_drive' ? 'PDF + Drive' : 'PDF Only';
+    const recurring =
+      interval === 'monthly'
+        ? ({ interval: 'month' } as const)
+        : ({ interval: 'month', interval_count: 3 } as const);
+
+    lineItems = [
+      {
+        price_data: {
+          currency: 'gbp',
+          unit_amount: unitAmount,
+          product_data: {
+            name: `${course.title} (${tierLabel})`,
+            metadata: { courseId: course._id.toString(), tier },
+          },
+          recurring,
+        },
+        quantity: 1,
+      },
+    ];
+  } else {
+    const planPrice = resolveCaseBankPlanPrice(interval);
+    lineItems = [{ price: planPrice.stripePriceId, quantity: 1 }];
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer_email: input.email,
-    line_items: [{ price: planPrice.stripePriceId, quantity: 1 }],
+    line_items: lineItems,
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata,

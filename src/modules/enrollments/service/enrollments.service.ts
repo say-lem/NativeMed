@@ -259,7 +259,7 @@ export const restoreEnrollment = async (enrollmentId: string) => {
 
 export const getMyEnrollments = async (userId: Types.ObjectId) => {
   return Enrollment.find({ userId, isActive: true })
-    .populate('courseId', 'title description thumbnailUrl price')
+    .populate('courseId', 'title description thumbnailUrl priceMonthly priceQuarterly')
     .sort({ accessGrantedAt: -1 });
 };
 
@@ -284,7 +284,7 @@ export const getAllEnrollments = async (page = 1, limit = 20) => {
   const [items, total] = await Promise.all([
     Enrollment.find()
       .populate('userId', 'fullName email phone')
-      .populate('courseId', 'title price')
+      .populate('courseId', 'title priceMonthly priceQuarterly')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit),
@@ -313,6 +313,6 @@ export const getEnrollmentsByCourse = async (
 // All enrollments (active + inactive) for a specific user — admin detail view
 export const getEnrollmentsByUser = async (userId: string) => {
   return Enrollment.find({ userId })
-    .populate('courseId', 'title thumbnailUrl price')
+    .populate('courseId', 'title thumbnailUrl priceMonthly priceQuarterly')
     .sort({ accessGrantedAt: -1 });
 };

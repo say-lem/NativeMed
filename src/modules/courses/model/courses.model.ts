@@ -4,7 +4,9 @@ export interface ICourse extends Document {
   _id: Types.ObjectId;
   title: string;
   description: string;
-  price: number;
+  /** GBP — at least one of priceMonthly / priceQuarterly must be set on the document. */
+  priceMonthly?: number;
+  priceQuarterly?: number;
   thumbnailUrl?: string;
   thumbnailPublicId?: string; // select:false — Cloudinary ref, used only for thumbnail deletion
   // Google Drive folder ID for this course's audio/video materials.
@@ -23,7 +25,8 @@ const courseSchema = new Schema<ICourse>(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true, trim: true },
-    price: { type: Number, required: true, min: 0 },
+    priceMonthly: { type: Number, min: 0 },
+    priceQuarterly: { type: Number, min: 0 },
     thumbnailUrl: { type: String },
     thumbnailPublicId: { type: String, select: false }, // internal Cloudinary ref — never sent to clients
     driveFolderId: { type: String, select: false }, // Drive folder for course video/audio — opt in with +driveFolderId

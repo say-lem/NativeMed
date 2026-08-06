@@ -13,10 +13,29 @@ export const createCourse = async (
   return Course.create({ ...input, createdBy: adminId });
 };
 
+export const assertCourseHasPricing = (pricing: {
+  priceMonthly?: number | null;
+  priceQuarterly?: number | null;
+}): void => {
+  if (pricing.priceMonthly == null && pricing.priceQuarterly == null) {
+    throw new AppError('At least one of priceMonthly or priceQuarterly is required', 400);
+  }
+};
+
 export const updateCourse = async (
   courseId: string,
   input: UpdateCourseInput,
 ) => {
+  const existing = await Course.findById(courseId);
+  if (!existing) throw new AppError('Course not found', 404);
+
+  if (input.priceMonthly !== undefined || input.priceQuarterly !== undefined) {
+    assertCourseHasPricing({
+      priceMonthly: input.priceMonthly ?? existing.priceMonthly,
+      priceQuarterly: input.priceQuarterly ?? existing.priceQuarterly,
+    });
+  }
+
   const course = await Course.findByIdAndUpdate(courseId, input, { new: true });
   if (!course) throw new AppError('Course not found', 404);
   return course;
@@ -136,12 +155,20 @@ export const getCourseByIdAdmin = async (courseId: string) => {
 
 // ── Public / user ─────────────────────────────────────────────────────────────
 
+/** Public course fields returned from list/detail endpoints (prices in GBP). */
+const publicCourseFields =
+  'title description priceMonthly priceQuarterly thumbnailUrl isPublished createdAt updatedAt';
+
 export const getAllPublished = async () => {
-  return Course.find({ isPublished: true }).sort({ createdAt: -1 });
+  return Course.find({ isPublished: true })
+    .select(publicCourseFields)
+    .sort({ createdAt: -1 });
 };
 
 export const getCourseById = async (courseId: string) => {
-  const course = await Course.findOne({ _id: courseId, isPublished: true });
+  const course = await Course.findOne({ _id: courseId, isPublished: true }).select(
+    publicCourseFields,
+  );
   if (!course) throw new AppError('Course not found', 404);
   return course;
 };
