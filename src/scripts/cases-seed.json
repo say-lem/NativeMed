@@ -6379,66 +6379,6 @@
     ]
   },
   {
-    "stationNumber": 80,
-    "title": "HIV and Death Certificate",
-    "consultationType": "Telephone Consultation",
-    "specialty": "Ethics",
-    "difficulty": "medium",
-    "isPublished": false,
-    "patientData": {
-      "name": "Robert Jones",
-      "age": 43,
-      "gender": "male",
-      "pastMedicalHistory": [
-        "Metastatic anal squamous cell carcinoma (HPV-associated)",
-        "HIV positive",
-        "Generalised anxiety disorder",
-        "Alcohol misuse and IV drug user (Heroin)",
-        "DNACPR in place"
-      ],
-      "drugHistory": [
-        "Dolutegravir (50 mg) + Tenofovir disoproxil fumarate (300 mg) + Emtricitabine (200 mg): One tablet orally once daily.",
-        "Morphine sulfate (Oramorph): 10 mg orally every 4 hours as needed",
-        "Senna: 15 mg orally at bedtime",
-        "Sertraline: 50 mg orally once daily.",
-        "Metoclopramide: 10 mg orally three times daily as needed for nausea and vomiting",
-        "No known drug allergy"
-      ],
-      "recentConsultation": {
-        "seenBy": "Patient booked a telephone consultation to discuss advance care planning",
-        "notes": "**Oncology letter**\n\n**Re: Mr. Robert Jones (Age: 43 years old male)**\n\nDear GP,\n\nI am writing to update you on the management and current status of our mutual patient, Mr. Robert Jones, who has been under the care of the Oncology Department for metastatic anal squamous cell carcinoma, associated with HPV infection and HIV-positive status.\n\nMr. Jones’s disease has progressed significantly, with confirmed metastases to liver, lungs, and various lymph nodes. He has undergone palliative radiotherapy and palliative chemotherapy for symptom control. Unfortunately, despite these interventions, his disease continues to advance, and it has been determined that there are no curative treatment options available.\n\nMr. Jones is aware of his prognosis and has consented to transition to community-based palliative care and end-of-life management. His primary goal is to prioritize comfort and maintain dignity during this period. He has also expressed a preference to die at home, supported by community palliative services.\n\nWe have now discharged Mr. Jones from our care and referred him to local hospice and palliative care teams. We would be grateful if you could oversee his ongoing management, including symptom control, psychosocial support, and coordination with community services.\n\nShould you require any further information about his oncology treatment or wish to discuss his case in more detail, please do not hesitate to contact me directly Yours sincerely,\n\nDr Atiku Abubakar, MBBS, MRCP (UK), FRCR\nConsultant Oncologist"
-      },
-      "bloodTestResults": {
-        "summary": "No blood tests available",
-        "rows": []
-      }
-    },
-    "patientStory": "You are Robert Jones, a 43-year-old male with terminal metastatic anal cancer and HIV. You are calling today to discuss your advance care planning with your GP.\n\n**Opening Statement:** *\"Hi Doctor. I hope you do not mind me bringing this up, but I wanted to talk about something really important to me. When the time comes, I would prefer that my HIV status is not included on my death certificate. I just do not want my family finding out about it, even after I am gone.\"*\n\nYou feel judged by your family for both your sexuality (being gay) and your history of substance use.  You have not told them about your HIV status, and you do not want them to find out, even after your death. You are particularly concerned that your HIV status might appear on your death certificate or be disclosed in any other way.\n\nYou are currently under hospice care, which has been helpful in managing your pain, but your strong preference is to die at home, not in a facility. You are otherwise well, and the hospice is hoping to discharge you in 3 days' time\n\n**Social History:** You are currently staying in a hospice and do not have any family or close carers involved. You are currently being supported by the hospice team but are exploring a home death as your preferred option. You do not smoke or drink alcohol\n\n**Ideas**: You are thinking ahead and want to plan properly for the end of your life.\n\n**Concerns**: You do not want your family to be told about your HIV status, and you want reassurance that this will be respected, even after you have passed away.\n\n**Expectations**: You would like help arranging for a peaceful death at home, and you are hoping the GP can advise on how to ensure your personal wishes, including around confidentiality, are respected.\n\n**Data Gathering and Diagnosis**\n\nStart by exploring the patient’s immediate concern: “I understand you’re worried about your HIV status being included on your death certificate. Could you tell me more about why this is important to you?”\n\nAsk what his specific concerns are about how his family might perceive his HIV status if it were disclosed\n\nAsk if he has any other wishes or concerns aside from keeping his HIV status confidential\n\nAsk if he has any current symptoms, including pain, constipation, nausea, breathlessness, or anxiety\n\nAsk about his appetite\n\nAsk about his mood and emotional wellbeing\n\nAsk about his current home situation and what support is available there\n\nAsk if he has any close friends or family who could provide care or support at home\n\nAsk about the level of involvement and support provided by the hospice or palliative care team\n\nAsk if he knows what is involved in writing a death certificate, and whether he would like you to explain the process.",
-    "markingScheme": [
-      {
-        "heading": "Data Gathering and Diagnosis",
-        "points": [
-          "See case notes"
-        ]
-      }
-    ],
-    "exampleExplanation": "*Thank you for sharing that with me, Robert. I can hear how important your privacy is, especially in relation to your HIV status and your concerns about how your family might respond. I want to reassure you that I take this very seriously.*\n\n*Let me first explain a little about how death certificates work here in the UK. These are medical and legal documents that must accurately reflect the cause of death and any conditions that contributed to it. If HIV is considered a contributing factor, it may have to be included. I know that might be distressing to hear, but it is part of the legal requirement for how we complete these documents.*\n\n*You should also be aware that death certificates are public records in the UK. This means that, unfortunately, anyone with some basic details such as your name and date of death can request a copy. That said, your broader medical records remain strictly confidential and cannot be accessed by anyone without legal permission. Are you following me so far?*\n\n*If you would like, we can talk about ways to prepare your family or discuss your wishes in terms of how this information is shared. We can also involve the palliative care team or a counsellor to help with this conversation. How does this sound?*\n\n*That aside, I want to focus on supporting your wishes as best we can. I understand you would like to die at home, and that is entirely valid. When you are discharged from the hospice, I can arrange a home visit. We will involve the district nurses to support with any medical needs, and I will also ask an occupational therapist to visit. They can help assess your home and ensure any necessary equipment or care is in place to keep you comfortable.*\n\n*We can also submit a form called the SR1 form, which may help fast-track access to benefits and carers if needed. I will update your records with your wish to have a home death, and we can involve the local palliative team and Macmillan nurses to provide additional emotional and medical support.*",
-    "management": [
-      "Sensitively explain that in the UK, the cause of death recorded on a death certificate must reflect the medical facts that contributed directly to the person’s death. As HIV played a role in the progression of the terminal illness, it may need to be included.",
-      "Inform him that the death certificate is a legal and medical document used for official purposes, including registration of death, and must be completed accurately.",
-      "Inform the patient that in the UK, death certificates are public records. This means that anyone with basic details such as full name and date of death can request a copy, so there is a possibility that his family may still become aware of the information recorded.",
-      "Acknowledge the emotional impact of this and provide reassurance that although the death certificate is not private, the rest of the patient’s health records remain confidential under the NHS and cannot be accessed by others without appropriate consent or legal basis.",
-      "Offer to support the patient in preparing how to communicate their wishes or diagnosis to their family, if they choose to. The palliative care team or a counsellor can also be involved to help facilitate these conversations sensitively, if the patient wishes.",
-      "Inform the patient that once he is discharged from the hospice, a home visit can be arranged to review his needs in person.",
-      "Explain that we will involve the district nurse to support his medical needs and symptom control at home, and that an occupational therapist may also assess his home environment to recommend adaptations, equipment, and arrange help with personal care if needed.",
-      "A form called the SR1 (formerly DS1500) can be completed to assess eligibility for fast-tracked benefits related to terminal illness.",
-      "Confirm that his wish to die at home will be documented in his clinical records and shared appropriately with the multidisciplinary team.",
-      "Provide information about the special palliative care phone line (e.g. the Daffodil Line), which offers direct access to a GP or district nursing team for patients receiving end-of-life care at home, ensuring rapid support for urgent medical or symptom needs."
-    ],
-    "learningPoints": "The Medical Certificate of Cause of Death (MCCD) is a legal document completed by a registered doctor to confirm the cause of an individual’s death. It is required for the official registration of the death with local authorities and forms a crucial part of the legal process. If HIV directly contributed to the death, for example, through AIDS-related illness or complications from opportunistic infections, it must be recorded on the MCCD in line with national guidance.\n\nUnder UK law, **death certificates are considered public records.** This means that any individual can request a copy of a death certificate, provided they know key identifying details (such as the full name, date of death, and place of death). The certificate includes the cause of death, which is completed by the certifying doctor.\n\nThis station highlights the importance of sensitive communication in end-of-life care, especially around confidentiality, stigma, and advance care planning. GPs must balance legal duties (e.g. accuracy of death certificates) with compassion and respect for the patient's personal wishes.",
-    "furtherResources": []
-  },
-  {
     "stationNumber": 81,
     "title": "Elbow Pain In Young Adult",
     "consultationType": "Video Consultation",

@@ -19,6 +19,7 @@ export interface ISubscription extends Document {
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
+  lastStripeEventCreated?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +41,7 @@ const subscriptionSchema = new Schema<ISubscription>(
     currentPeriodStart:   { type: Date, required: true },
     currentPeriodEnd:     { type: Date, required: true },
     cancelAtPeriodEnd:    { type: Boolean, default: false },
+    lastStripeEventCreated: { type: Number },
   },
   { timestamps: true },
 );

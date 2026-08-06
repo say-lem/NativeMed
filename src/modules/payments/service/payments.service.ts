@@ -11,7 +11,7 @@ import {
 import { User } from '../../auth/model/auth.model';
 import { Course } from '../../courses/model/courses.model';
 import { Payment } from '../model/payments.model';
-import { ISubscription } from '../../subscriptions/model/subscriptions.model';
+import { ISubscription, Subscription } from '../../subscriptions/model/subscriptions.model';
 import { resolvePlanPrice } from '../../subscriptions/constants/plans';
 import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
@@ -77,21 +77,29 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
 };
 
 export const handleWebhookEvent = async (event: Stripe.Event) => {
+  const eventCreated = event.created;
+
   switch (event.type) {
     case 'checkout.session.completed':
-      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session, eventCreated);
       break;
     case 'invoice.payment_succeeded':
-      await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+      await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice, eventCreated);
       break;
     case 'invoice.payment_failed':
       await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
       break;
+    case 'invoice.voided':
+      await handleInvoiceVoided(event.data.object as Stripe.Invoice);
+      break;
+    case 'charge.refunded':
+      await handleChargeRefunded(event.data.object as Stripe.Charge);
+      break;
     case 'customer.subscription.updated':
-      await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+      await handleSubscriptionUpdated(event.data.object as Stripe.Subscription, eventCreated);
       break;
     case 'customer.subscription.deleted':
-      await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+      await handleSubscriptionDeleted(event.data.object as Stripe.Subscription, eventCreated);
       break;
     default:
       break;
@@ -134,23 +142,22 @@ export const getRecentPayments = async (limit = 10) => {
 // Webhook handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const handleCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
+const handleCheckoutCompleted = async (
+  session: Stripe.Checkout.Session,
+  eventCreated: number,
+) => {
   if (session.mode !== 'subscription' || !session.subscription) return;
 
   const stripeSub = await stripe.subscriptions.retrieve(session.subscription as string);
-  await syncSubscriptionFromStripe(stripeSub, session.metadata ?? undefined);
-
-  if (session.amount_total != null) {
-    await recordPaymentFromSession(session, stripeSub, 'succeeded');
-  }
+  await syncSubscriptionFromStripe(stripeSub, session.metadata ?? undefined, eventCreated);
 };
 
-const handleInvoicePaymentSucceeded = async (invoice: Stripe.Invoice) => {
+const handleInvoicePaymentSucceeded = async (invoice: Stripe.Invoice, eventCreated: number) => {
   const subscriptionId = getInvoiceSubscriptionId(invoice);
   if (!subscriptionId) return;
 
   const stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
-  const subscription = await syncSubscriptionFromStripe(stripeSub);
+  const subscription = await syncSubscriptionFromStripe(stripeSub, undefined, eventCreated);
 
   if (!subscription) return;
 
@@ -175,6 +182,28 @@ const handleInvoicePaymentSucceeded = async (invoice: Stripe.Invoice) => {
   );
 
   await grantAccessForSubscription(subscription);
+};
+
+const handleInvoiceVoided = async (invoice: Stripe.Invoice) => {
+  await Payment.findOneAndUpdate(
+    { stripeInvoiceId: invoice.id },
+    { status: 'refunded' },
+    { new: true },
+  );
+};
+
+const handleChargeRefunded = async (charge: Stripe.Charge) => {
+  const payment = await markPaymentRefunded(charge);
+  if (!payment?.subscriptionId) return;
+
+  const isFullRefund = charge.refunded && charge.amount_refunded >= charge.amount;
+  if (!isFullRefund) return;
+
+  const subscription = await Subscription.findById(payment.subscriptionId);
+  if (!subscription) return;
+
+  await Subscription.findByIdAndUpdate(subscription._id, { status: 'cancelled' });
+  await revokeAccessForSubscription(subscription);
 };
 
 const handleInvoicePaymentFailed = async (invoice: Stripe.Invoice) => {
@@ -203,8 +232,11 @@ const handleInvoicePaymentFailed = async (invoice: Stripe.Invoice) => {
   );
 };
 
-const handleSubscriptionUpdated = async (stripeSub: Stripe.Subscription) => {
-  const subscription = await subscriptionsService.updateFromStripeSubscription(stripeSub);
+const handleSubscriptionUpdated = async (stripeSub: Stripe.Subscription, eventCreated: number) => {
+  const subscription = await subscriptionsService.updateFromStripeSubscription(
+    stripeSub,
+    eventCreated,
+  );
   if (!subscription) return;
 
   if (subscription.status === 'active' || subscription.status === 'past_due') {
@@ -214,14 +246,15 @@ const handleSubscriptionUpdated = async (stripeSub: Stripe.Subscription) => {
   }
 };
 
-const handleSubscriptionDeleted = async (stripeSub: Stripe.Subscription) => {
-  const subscription = await subscriptionsService.expireByStripeId(stripeSub.id);
+const handleSubscriptionDeleted = async (stripeSub: Stripe.Subscription, eventCreated: number) => {
+  const subscription = await subscriptionsService.expireByStripeId(stripeSub.id, eventCreated);
   if (subscription) await revokeAccessForSubscription(subscription);
 };
 
 const syncSubscriptionFromStripe = async (
   stripeSub: Stripe.Subscription,
   metadataOverride?: Stripe.Metadata,
+  eventCreated?: number,
 ) => {
   const metadata = { ...stripeSub.metadata, ...metadataOverride };
   const userId = metadata.userId;
@@ -237,20 +270,23 @@ const syncSubscriptionFromStripe = async (
   const courseId = metadata.courseId;
   const period = getSubscriptionPeriod(stripeSub);
 
-  const subscription = await subscriptionsService.upsertFromStripe({
-    userId: new Types.ObjectId(userId),
-    type,
-    courseId: courseId ? new Types.ObjectId(courseId) : undefined,
-    tier,
-    billingInterval: interval,
-    stripeCustomerId:
-      typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id,
-    stripeSubscriptionId: stripeSub.id,
-    currentPeriodStart: period.currentPeriodStart,
-    currentPeriodEnd: period.currentPeriodEnd,
-    status: mapStripeSubscriptionStatus(stripeSub.status),
-    cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-  });
+  const subscription = await subscriptionsService.upsertFromStripe(
+    {
+      userId: new Types.ObjectId(userId),
+      type,
+      courseId: courseId ? new Types.ObjectId(courseId) : undefined,
+      tier,
+      billingInterval: interval,
+      stripeCustomerId:
+        typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id,
+      stripeSubscriptionId: stripeSub.id,
+      currentPeriodStart: period.currentPeriodStart,
+      currentPeriodEnd: period.currentPeriodEnd,
+      status: mapStripeSubscriptionStatus(stripeSub.status),
+      cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+    },
+    eventCreated,
+  );
 
   await grantAccessForSubscription(subscription);
   return subscription;
@@ -281,35 +317,41 @@ const revokeAccessForSubscription = async (subscription: ISubscription | null) =
   }
 };
 
-const recordPaymentFromSession = async (
-  session: Stripe.Checkout.Session,
-  stripeSub: Stripe.Subscription,
-  status: 'succeeded' | 'pending',
-) => {
-  const metadata = session.metadata ?? {};
-  const userId = metadata.userId;
-  if (!userId) return;
+const markPaymentRefunded = async (charge: Stripe.Charge) => {
+  type LegacyCharge = Stripe.Charge & {
+    invoice?: string | Stripe.Invoice | null;
+  };
 
-  const subscription = await subscriptionsService.getByStripeSubscriptionId(stripeSub.id);
+  const paymentIntentId =
+    typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+  const invoiceId = resolveChargeInvoiceId(charge as LegacyCharge);
 
-  await Payment.findOneAndUpdate(
-    { stripeCheckoutSessionId: session.id },
-    {
-      userId: new Types.ObjectId(userId),
-      subscriptionId: subscription?._id,
-      amount: session.amount_total ?? 0,
-      currency: session.currency ?? 'gbp',
-      status,
-      method: 'stripe',
-      itemType: (metadata.type as SubscriptionType) ?? 'case_bank',
-      courseId: metadata.courseId ? new Types.ObjectId(metadata.courseId) : undefined,
-      tier: metadata.tier as CourseAccessTier | undefined,
-      billingInterval: metadata.interval as BillingInterval | undefined,
-      stripeCheckoutSessionId: session.id,
-      paidAt: status === 'succeeded' ? new Date() : undefined,
-    },
-    { upsert: true, new: true },
-  );
+  if (paymentIntentId) {
+    const payment = await Payment.findOneAndUpdate(
+      { stripePaymentIntentId: paymentIntentId },
+      { status: 'refunded' },
+      { new: true },
+    );
+    if (payment) return payment;
+  }
+
+  if (invoiceId) {
+    return Payment.findOneAndUpdate(
+      { stripeInvoiceId: invoiceId },
+      { status: 'refunded' },
+      { new: true },
+    );
+  }
+
+  return null;
+};
+
+const resolveChargeInvoiceId = (
+  charge: Stripe.Charge & { invoice?: string | Stripe.Invoice | null },
+): string | undefined => {
+  const invoice = charge.invoice;
+  if (!invoice) return undefined;
+  return typeof invoice === 'string' ? invoice : invoice.id;
 };
 
 export const createBillingPortalSession = async (userId: Types.ObjectId, returnUrl?: string) => {

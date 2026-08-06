@@ -163,6 +163,24 @@ export const getCourseSubscriptionStatus = async (
 // Stripe webhook helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+const isStaleStripeEvent = (subscription: ISubscription | null, eventCreated: number): boolean =>
+  subscription?.lastStripeEventCreated != null &&
+  eventCreated < subscription.lastStripeEventCreated;
+
+const wouldResurrectCancelledSubscription = (
+  currentStatus: SubscriptionStatus,
+  incomingStatus: SubscriptionStatus,
+): boolean =>
+  currentStatus === 'cancelled' &&
+  (incomingStatus === 'active' || incomingStatus === 'past_due');
+
+const eventOrderingFilter = (eventCreated: number) => ({
+  $or: [
+    { lastStripeEventCreated: { $exists: false } },
+    { lastStripeEventCreated: { $lte: eventCreated } },
+  ],
+});
+
 export interface UpsertSubscriptionInput {
   userId: Types.ObjectId;
   type: SubscriptionType;
@@ -177,27 +195,80 @@ export interface UpsertSubscriptionInput {
   cancelAtPeriodEnd?: boolean;
 }
 
-export const upsertFromStripe = async (input: UpsertSubscriptionInput) => {
+export const upsertFromStripe = async (input: UpsertSubscriptionInput, eventCreated?: number) => {
   const filter =
     input.type === 'case_bank'
       ? { userId: input.userId, type: 'case_bank' as const }
       : { userId: input.userId, type: 'course' as const, courseId: input.courseId };
 
-  return Subscription.findOneAndUpdate(
-    filter,
-    {
-      ...input,
-      cancelAtPeriodEnd: input.cancelAtPeriodEnd ?? false,
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+  const update = {
+    ...input,
+    cancelAtPeriodEnd: input.cancelAtPeriodEnd ?? false,
+    ...(eventCreated != null ? { lastStripeEventCreated: eventCreated } : {}),
+  };
+
+  if (eventCreated != null) {
+    return Subscription.findOneAndUpdate(
+      { ...filter, ...eventOrderingFilter(eventCreated) },
+      update,
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  }
+
+  return Subscription.findOneAndUpdate(filter, update, {
+    upsert: true,
+    new: true,
+    setDefaultsOnInsert: true,
+  });
 };
 
 export const updateFromStripeSubscription = async (
   stripeSub: Stripe.Subscription,
+  eventCreated: number,
+): Promise<ISubscription | null> => {
+  const existing = await Subscription.findOne({ stripeSubscriptionId: stripeSub.id });
+  if (!existing) return null;
+
+  if (isStaleStripeEvent(existing, eventCreated)) {
+    console.warn(`Skipping stale Stripe event for subscription ${stripeSub.id}`);
+    return existing;
+  }
+
+  const status = mapStripeSubscriptionStatus(stripeSub.status);
+  if (wouldResurrectCancelledSubscription(existing.status, status)) {
+    console.warn(`Blocking cancelled→active transition for subscription ${stripeSub.id}`);
+    return existing;
+  }
+
+  const period = getSubscriptionPeriod(stripeSub);
+
+  return Subscription.findOneAndUpdate(
+    { stripeSubscriptionId: stripeSub.id, ...eventOrderingFilter(eventCreated) },
+    {
+      status,
+      currentPeriodStart: period.currentPeriodStart,
+      currentPeriodEnd: period.currentPeriodEnd,
+      cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+      lastStripeEventCreated: eventCreated,
+    },
+    { new: true },
+  );
+};
+
+export const expireByStripeId = async (stripeSubscriptionId: string, eventCreated: number) => {
+  return Subscription.findOneAndUpdate(
+    { stripeSubscriptionId, ...eventOrderingFilter(eventCreated) },
+    { status: 'cancelled', lastStripeEventCreated: eventCreated },
+    { new: true },
+  );
+};
+
+export const syncFromStripeSubscription = async (
+  stripeSub: Stripe.Subscription,
 ): Promise<ISubscription | null> => {
   const status = mapStripeSubscriptionStatus(stripeSub.status);
   const period = getSubscriptionPeriod(stripeSub);
+  const eventCreated = Math.floor(Date.now() / 1000);
 
   return Subscription.findOneAndUpdate(
     { stripeSubscriptionId: stripeSub.id },
@@ -206,17 +277,36 @@ export const updateFromStripeSubscription = async (
       currentPeriodStart: period.currentPeriodStart,
       currentPeriodEnd: period.currentPeriodEnd,
       cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+      lastStripeEventCreated: eventCreated,
     },
     { new: true },
   );
 };
 
-export const expireByStripeId = async (stripeSubscriptionId: string) => {
-  return Subscription.findOneAndUpdate(
-    { stripeSubscriptionId },
-    { status: 'cancelled' },
-    { new: true },
-  );
+export const reconcileAllFromStripe = async (): Promise<{ synced: number; errors: number }> => {
+  const { stripe } = await import('../../../config/stripe');
+  const subscriptions = await Subscription.find({
+    stripeSubscriptionId: { $exists: true, $ne: '' },
+  });
+
+  let synced = 0;
+  let errors = 0;
+
+  for (const subscription of subscriptions) {
+    try {
+      const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+      await syncFromStripeSubscription(stripeSub);
+      synced++;
+    } catch (error) {
+      errors++;
+      console.error(
+        `Failed to reconcile subscription ${subscription.stripeSubscriptionId}:`,
+        error,
+      );
+    }
+  }
+
+  return { synced, errors };
 };
 
 export const getByStripeSubscriptionId = async (stripeSubscriptionId: string) => {

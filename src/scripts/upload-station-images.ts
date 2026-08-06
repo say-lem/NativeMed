@@ -59,6 +59,7 @@ async function run() {
         use_filename:    false,
         unique_filename: true,
         overwrite:       false,
+        context:         `station_number=${stationNumber}`,
         transformation: [{ width: 800, height: 600, crop: 'fill', gravity: 'auto' }],
       });
 

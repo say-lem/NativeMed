@@ -2,6 +2,15 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 import { env } from './env';
 
+/** Normalize service account key from .env (handles literal \\n and missing PEM headers). */
+export const normalizeGooglePrivateKey = (raw: string): string => {
+  const key = raw.replace(/\\n/g, '\n').trim();
+  if (key.includes('BEGIN PRIVATE KEY')) return key;
+
+  const body = key.replace(/\s+/g, '');
+  return `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----\n`;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Drive client
 // Authenticated via a Google Service Account.
@@ -29,8 +38,7 @@ const auth = isDriveConfigured
   ? new google.auth.GoogleAuth({
       credentials: {
         client_email: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        // .env stores \n as a literal two-char sequence — convert to real newlines
-        private_key: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY!.replace(/\\n/g, '\n'),
+        private_key: normalizeGooglePrivateKey(env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY!),
       },
       scopes: ['https://www.googleapis.com/auth/drive'],
     })
