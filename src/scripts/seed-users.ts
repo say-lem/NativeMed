@@ -37,21 +37,21 @@ const SEED_USERS = [
     email: 'alice.student@example.com',
     phone: '+447700900001',
     caseBank: true,
-    courseTier: 'pdf_only' as const,
+    courseTier: 'mocksessions_only' as const,
   },
   {
     fullName: 'Bob Learner',
     email: 'bob.learner@example.com',
     phone: '+447700900002',
     caseBank: true,
-    courseTier: 'pdf_drive' as const,
+    courseTier: 'mocksession_and_lectures' as const,
   },
   {
     fullName: 'Carol Trainee',
     email: 'carol.trainee@example.com',
     phone: '+447700900003',
     caseBank: false,
-    courseTier: 'pdf_only' as const,
+    courseTier: 'mocksessions_only' as const,
   },
 ];
 

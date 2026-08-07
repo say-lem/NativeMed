@@ -7,6 +7,7 @@ import {
   SubscriptionStatus,
   SubscriptionType,
 } from '../../../shared/types';
+import { formatCourseAccessTier } from '../../../shared/constants/courseAccess';
 import { Subscription, ISubscription } from '../model/subscriptions.model';
 import { ALL_PLANS } from '../constants/plans';
 import {
@@ -80,8 +81,8 @@ const formatSubscriptionPlan = (
     return `Case Bank (${billingInterval})`;
   }
 
-  const tierLabel = tier === 'pdf_drive' ? 'PDF + Drive' : 'PDF Only';
-  return `Course ${tierLabel} (${billingInterval})`;
+  const tierLabel = tier ? formatCourseAccessTier(tier) : 'Course';
+  return `${tierLabel} (${billingInterval})`;
 };
 
 export interface SubscriberListItem {

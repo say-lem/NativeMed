@@ -5,7 +5,7 @@ const mongoId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid ID');
 export const createCheckoutSchema = z
   .object({
     type:       z.enum(['case_bank', 'course']),
-    tier:       z.enum(['pdf_only', 'pdf_drive']).optional(),
+    tier:       z.enum(['mocksessions_only', 'mocksession_and_lectures']).optional(),
     interval:   z.enum(['monthly', 'quarterly']),
     courseId:   mongoId.optional(),
     successUrl: z.string().url().optional(),

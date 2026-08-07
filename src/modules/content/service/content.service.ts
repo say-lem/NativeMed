@@ -3,7 +3,7 @@ import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/clo
 import { AppError } from '../../../shared/utils/appError';
 import { UserRole } from '../../../shared/types';
 import { Course } from '../../courses/model/courses.model';
-import { isEnrolled, getEnrollmentAccessTier } from '../../enrollments/service/enrollments.service';
+import { isEnrolled } from '../../enrollments/service/enrollments.service';
 import { CourseContent } from '../model/content.model';
 import {
   UploadPdfInput,
@@ -131,20 +131,7 @@ export const getCourseContents = async (
   role: UserRole,
 ) => {
   await assertCanReadContent(courseId, userId, role);
-
-  const contents = await CourseContent.find({ courseId }).sort({ order: 1 });
-
-  if (role === 'admin') return contents;
-
-  const course = await Course.findById(courseId).select('createdBy');
-  if (course?.createdBy.toString() === userId.toString()) return contents;
-
-  const accessTier = await getEnrollmentAccessTier(userId, courseId);
-  if (accessTier === 'pdf_only') {
-    return contents.filter((c) => c.type === 'pdf');
-  }
-
-  return contents;
+  return CourseContent.find({ courseId }).sort({ order: 1 });
 };
 
 export const getContentById = async (
@@ -155,20 +142,6 @@ export const getContentById = async (
   const content = await CourseContent.findById(contentId);
   if (!content) throw new AppError('Content not found', 404);
   await assertCanReadContent(content.courseId.toString(), userId, role);
-
-  if (role !== 'admin' && content.type !== 'pdf') {
-    const course = await Course.findById(content.courseId).select('createdBy');
-    const isCreator = course?.createdBy.toString() === userId.toString();
-    if (!isCreator) {
-      const accessTier = await getEnrollmentAccessTier(userId, content.courseId.toString());
-      if (accessTier === 'pdf_only') {
-        throw new AppError(
-          'Your plan includes PDF access only. Upgrade to access audio and video materials.',
-          403,
-        );
-      }
-    }
-  }
 
   return content;
 };
