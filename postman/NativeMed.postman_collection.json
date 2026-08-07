@@ -259,7 +259,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Course title\",\n  \"description\": \"A longer course description...\",\n  \"price\": 0\n}"
+              "raw": "{\n  \"title\": \"Course title\",\n  \"description\": \"A longer course description...\",\n  \"priceMonthly\": 49.99,\n  \"priceQuarterly\": 129.99,\n  \"lecturesDriveFolderId\": \"https://drive.google.com/drive/folders/YOUR_LECTURES_FOLDER_ID\",\n  \"mockSessionsDriveFolderId\": \"https://drive.google.com/drive/folders/YOUR_MOCK_SESSIONS_FOLDER_ID\"\n}"
             },
             "url": "{{baseUrl}}/api/v1/courses"
           }
@@ -676,7 +676,7 @@
           }
         },
         {
-          "name": "POST /api/v1/payments/checkout — Course PDF (auth)",
+          "name": "POST /api/v1/payments/checkout — Course Mock Sessions Only (auth)",
           "request": {
             "method": "POST",
             "header": [
@@ -685,13 +685,13 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"course\",\n  \"tier\": \"pdf_only\",\n  \"interval\": \"monthly\",\n  \"courseId\": \"{{courseId}}\",\n  \"successUrl\": \"http://localhost:3000/payment/success\",\n  \"cancelUrl\": \"http://localhost:3000/payment/cancel\"\n}"
+              "raw": "{\n  \"type\": \"course\",\n  \"tier\": \"mocksessions_only\",\n  \"interval\": \"monthly\",\n  \"courseId\": \"{{courseId}}\",\n  \"successUrl\": \"http://localhost:3000/payment/success\",\n  \"cancelUrl\": \"http://localhost:3000/payment/cancel\"\n}"
             },
             "url": "{{baseUrl}}/api/v1/payments/checkout"
           }
         },
         {
-          "name": "POST /api/v1/payments/checkout — Course PDF + Drive (auth)",
+          "name": "POST /api/v1/payments/checkout — Course Mock Sessions + Lectures (auth)",
           "request": {
             "method": "POST",
             "header": [
@@ -700,7 +700,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"course\",\n  \"tier\": \"pdf_drive\",\n  \"interval\": \"quarterly\",\n  \"courseId\": \"{{courseId}}\",\n  \"successUrl\": \"http://localhost:3000/payment/success\",\n  \"cancelUrl\": \"http://localhost:3000/payment/cancel\"\n}"
+              "raw": "{\n  \"type\": \"course\",\n  \"tier\": \"mocksession_and_lectures\",\n  \"interval\": \"quarterly\",\n  \"courseId\": \"{{courseId}}\",\n  \"successUrl\": \"http://localhost:3000/payment/success\",\n  \"cancelUrl\": \"http://localhost:3000/payment/cancel\"\n}"
             },
             "url": "{{baseUrl}}/api/v1/payments/checkout"
           }

@@ -41,7 +41,7 @@ const paymentSchema = new Schema<IPayment>(
     method:                  { type: String, enum: ['stripe'], default: 'stripe' },
     itemType:                { type: String, enum: ['case_bank', 'course'], required: true },
     courseId:                { type: Schema.Types.ObjectId, ref: 'Course' },
-    tier:                    { type: String, enum: ['pdf_only', 'pdf_drive'] },
+    tier:                    { type: String, enum: ['mocksessions_only', 'mocksession_and_lectures'] },
     billingInterval:         { type: String, enum: ['monthly', 'quarterly'] },
     stripeInvoiceId:         { type: String },
     stripePaymentIntentId:   { type: String },

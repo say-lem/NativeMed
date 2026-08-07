@@ -92,7 +92,7 @@ const getUserDetail = asyncHandler(async (req: Request, res: Response) => {
   const [user, enrollments, caseBankSubscription] = await Promise.all([
     User.findById(userId),
     Enrollment.find({ userId })
-      .populate('courseId', 'title thumbnailUrl price')
+      .populate('courseId', 'title thumbnailUrl priceMonthly priceQuarterly')
       .populate('grantedBy', 'fullName email')
       .sort({ accessGrantedAt: -1 }),
     subscriptionsService.getUserCaseBankSubscription(userId),

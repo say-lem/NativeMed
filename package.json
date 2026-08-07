@@ -9,8 +9,12 @@
     "start": "node dist/server.js",
     "seed:admin": "ts-node src/scripts/seed-admin.ts",
     "seed:cases": "ts-node src/scripts/seed-cases.ts",
+    "restore:station-images": "ts-node -r dotenv/config src/scripts/restore-station-images.ts",
     "seed:course": "ts-node src/scripts/seed-course.ts",
     "seed:users": "ts-node src/scripts/seed-users.ts",
+    "reconcile:stripe": "ts-node src/scripts/reconcile-stripe.ts",
+    "test:stripe": "ts-node -r dotenv/config src/scripts/test-stripe-connection.ts",
+    "test:drive": "ts-node -r dotenv/config src/scripts/test-google-drive-connection.ts",
     "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

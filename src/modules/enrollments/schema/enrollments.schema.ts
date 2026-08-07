@@ -12,7 +12,7 @@ export const revokeEnrollmentSchema = z.object({
 export const manualEnrollSchema = z.object({
   userId:     mongoId,
   courseId:   mongoId,
-  accessTier: z.enum(['pdf_only', 'pdf_drive']).default('pdf_drive'),
+  accessTier: z.enum(['mocksessions_only', 'mocksession_and_lectures']).default('mocksession_and_lectures'),
 });
 
 // ── Admin: restore a previously revoked enrollment ───────────────────────────

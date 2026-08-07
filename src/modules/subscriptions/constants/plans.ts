@@ -36,71 +36,28 @@ export const CASE_BANK_PLAN: PlanDefinition = {
   ],
 };
 
+/** Access tiers for course checkout — amounts come from each course's priceMonthly / priceQuarterly. */
 export const COURSE_PLANS: PlanDefinition[] = [
   {
     type: 'course',
-    tier: 'pdf_only',
-    name: 'Course — PDF Only',
-    description: 'Access to course PDF materials on the website.',
-    prices: [
-      {
-        amount: 6999,
-        currency: 'gbp',
-        interval: 'monthly',
-        stripePriceId: env.STRIPE_PRICE_COURSE_PDF_MONTHLY,
-        label: '£69.99 / month',
-      },
-      {
-        amount: 19900,
-        currency: 'gbp',
-        interval: 'quarterly',
-        stripePriceId: env.STRIPE_PRICE_COURSE_PDF_QUARTERLY,
-        label: '£199 / 3 months',
-      },
-    ],
+    tier: 'mocksessions_only',
+    name: 'Course — Mock Sessions Only',
+    description: 'Access to mock session materials on Google Drive. Price is set per course.',
+    prices: [],
   },
   {
     type: 'course',
-    tier: 'pdf_drive',
-    name: 'Course — PDF + Drive',
-    description: 'Access to course PDFs plus audio and video on Google Drive.',
-    prices: [
-      {
-        amount: 9999,
-        currency: 'gbp',
-        interval: 'monthly',
-        stripePriceId: env.STRIPE_PRICE_COURSE_FULL_MONTHLY,
-        label: '£99.99 / month',
-      },
-      {
-        amount: 28900,
-        currency: 'gbp',
-        interval: 'quarterly',
-        stripePriceId: env.STRIPE_PRICE_COURSE_FULL_QUARTERLY,
-        label: '£289 / 3 months',
-      },
-    ],
+    tier: 'mocksession_and_lectures',
+    name: 'Course — Mock Sessions + Lectures',
+    description: 'Access to mock sessions and lecture materials on Google Drive. Price is set per course.',
+    prices: [],
   },
 ];
 
 export const ALL_PLANS: PlanDefinition[] = [CASE_BANK_PLAN, ...COURSE_PLANS];
 
-export const resolvePlanPrice = (
-  type: SubscriptionType,
-  interval: BillingInterval,
-  tier?: CourseAccessTier,
-): PlanPrice => {
-  if (type === 'case_bank') {
-    const price = CASE_BANK_PLAN.prices.find((p) => p.interval === interval);
-    if (!price) throw new Error(`No case bank plan for interval: ${interval}`);
-    return price;
-  }
-
-  if (!tier) throw new Error('Course subscriptions require a tier');
-  const plan = COURSE_PLANS.find((p) => p.tier === tier);
-  if (!plan) throw new Error(`Unknown course tier: ${tier}`);
-
-  const price = plan.prices.find((p) => p.interval === interval);
-  if (!price) throw new Error(`No course plan for tier ${tier} and interval ${interval}`);
+export const resolveCaseBankPlanPrice = (interval: BillingInterval): PlanPrice => {
+  const price = CASE_BANK_PLAN.prices.find((p) => p.interval === interval);
+  if (!price) throw new Error(`No case bank plan for interval: ${interval}`);
   return price;
 };

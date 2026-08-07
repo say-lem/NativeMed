@@ -10,6 +10,10 @@
  *   3. cases-seed.json is present next to this file
  *      (or generated fresh: python3 parse-cases.py cases.docx --output src/scripts/cases-seed.json)
  *
+ * Station images (stationImageUrl) live in cases-seed.json and are upserted with
+ * each case. If you regenerate the JSON from the docx, run this first:
+ *   npm run restore:station-images
+ *
  * Usage:
  *   npm run seed:cases                            # upsert, leave isPublished as-is
  *   npm run seed:cases -- --publish               # upsert + publish all cases
