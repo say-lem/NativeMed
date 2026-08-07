@@ -24,7 +24,7 @@ const enrollmentSchema = new Schema<IEnrollment>(
     courseId:       { type: Schema.Types.ObjectId, ref: 'Course',       required: true },
     paymentId:      { type: Schema.Types.ObjectId, ref: 'Payment',      required: true },
     subscriptionId: { type: Schema.Types.ObjectId, ref: 'Subscription' },
-    accessTier:     { type: String, enum: ['pdf_only', 'pdf_drive'], default: 'pdf_drive' },
+    accessTier:     { type: String, enum: ['mocksessions_only', 'mocksession_and_lectures'], default: 'mocksession_and_lectures' },
     source:         { type: String, enum: ['payment', 'manual'], default: 'payment' },
     grantedBy:       { type: Schema.Types.ObjectId, ref: 'User' },
     accessGrantedAt: { type: Date, default: Date.now },

@@ -1,6 +1,15 @@
 import { z } from 'zod';
+import { extractDriveId } from '../../../shared/utils/googleDrive';
 
 const gbpPrice = z.coerce.number().min(0);
+
+const driveFolderLink = z
+  .string()
+  .min(1, 'Drive folder link or ID is required')
+  .refine((val) => extractDriveId(val) !== null, {
+    message: 'Invalid Google Drive folder link or ID',
+  })
+  .transform((val) => extractDriveId(val)!);
 
 const coursePricingRefine = (
   data: { priceMonthly?: number; priceQuarterly?: number },
@@ -24,9 +33,9 @@ export const createCourseSchema = z
     priceMonthly: gbpPrice.optional(),
     priceQuarterly: gbpPrice.optional(),
     isPublished: z.boolean().optional(),
-    // Google Drive folder ID — admin copies this from the Drive folder URL
-    // e.g. https://drive.google.com/drive/folders/<THIS_PART>
-    driveFolderId: z.string().min(10, 'Invalid Drive folder ID').optional(),
+    // Accept a full Drive folder URL or the raw folder ID — extracted server-side.
+    lecturesDriveFolderId: driveFolderLink,
+    mockSessionsDriveFolderId: driveFolderLink,
   })
   .superRefine(coursePricingRefine);
 
@@ -37,7 +46,8 @@ export const updateCourseSchema = z
     priceMonthly: gbpPrice.optional(),
     priceQuarterly: gbpPrice.optional(),
     isPublished: z.boolean().optional(),
-    driveFolderId: z.string().min(10, 'Invalid Drive folder ID').optional(),
+    lecturesDriveFolderId: driveFolderLink.optional(),
+    mockSessionsDriveFolderId: driveFolderLink.optional(),
   });
 
 export const courseIdSchema = z.object({

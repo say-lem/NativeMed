@@ -8,6 +8,7 @@ import {
   CourseAccessTier,
   SubscriptionType,
 } from '../../../shared/types';
+import { formatCourseAccessTier } from '../../../shared/constants/courseAccess';
 import { User } from '../../auth/model/auth.model';
 import { Course } from '../../courses/model/courses.model';
 import { Payment } from '../model/payments.model';
@@ -75,7 +76,7 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
       throw new AppError('This course does not have a valid purchase price', 400);
     }
 
-    const tierLabel = tier === 'pdf_drive' ? 'PDF + Drive' : 'PDF Only';
+    const tierLabel = formatCourseAccessTier(tier);
     const recurring =
       interval === 'monthly'
         ? ({ interval: 'month' } as const)

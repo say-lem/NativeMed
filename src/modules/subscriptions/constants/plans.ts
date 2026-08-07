@@ -40,16 +40,16 @@ export const CASE_BANK_PLAN: PlanDefinition = {
 export const COURSE_PLANS: PlanDefinition[] = [
   {
     type: 'course',
-    tier: 'pdf_only',
-    name: 'Course — PDF Only',
-    description: 'Access to course PDF materials on the website. Price is set per course.',
+    tier: 'mocksessions_only',
+    name: 'Course — Mock Sessions Only',
+    description: 'Access to mock session materials on Google Drive. Price is set per course.',
     prices: [],
   },
   {
     type: 'course',
-    tier: 'pdf_drive',
-    name: 'Course — PDF + Drive',
-    description: 'Access to course PDFs plus audio and video on Google Drive. Price is set per course.',
+    tier: 'mocksession_and_lectures',
+    name: 'Course — Mock Sessions + Lectures',
+    description: 'Access to mock sessions and lecture materials on Google Drive. Price is set per course.',
     prices: [],
   },
 ];
