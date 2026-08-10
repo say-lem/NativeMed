@@ -8,12 +8,28 @@ export const revokeEnrollmentSchema = z.object({
   courseId: mongoId,
 });
 
-// ── Admin: manually enroll a user (comped / gifted access, no payment needed) ─
-export const manualEnrollSchema = z.object({
-  userId:     mongoId,
-  courseId:   mongoId,
-  accessTier: z.enum(['mocksessions_only', 'mocksession_and_lectures']).default('mocksession_and_lectures'),
-});
+// ── Admin: manually grant access (comped / gifted, no payment needed) ─────────
+// Same endpoint covers both course enrollment and Case Bank — "type" picks
+// which. Defaults to "course" so any existing caller that doesn't send it
+// keeps working unchanged.
+export const manualEnrollSchema = z
+  .object({
+    userId:       mongoId,
+    type:         z.enum(['case_bank', 'course']).default('course'),
+    courseId:     mongoId.optional(),
+    accessTier:   z.enum(['mocksessions_only', 'mocksession_and_lectures']).optional(),
+    // Case Bank only — how many days of access to grant. Defaults to 30 (one billing month).
+    durationDays: z.coerce.number().int().min(1).max(3650).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === 'course' && !data.courseId) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'courseId is required when type is "course"',
+        path: ['courseId'],
+      });
+    }
+  });
 
 // ── Admin: restore a previously revoked enrollment ───────────────────────────
 export const restoreEnrollmentSchema = z.object({

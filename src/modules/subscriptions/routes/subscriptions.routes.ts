@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../../../shared/middleware/authenticate';
 import { authorize } from '../../../shared/middleware/authorize';
 import { validate } from '../../../shared/middleware/validate';
-import { courseIdParamsSchema } from '../schema/subscriptions.schema';
+import { courseIdParamsSchema, changePlanSchema } from '../schema/subscriptions.schema';
 import * as subscriptionsController from '../controller/subscriptions.controller';
 
 const router = Router();
@@ -25,6 +25,42 @@ router.get(
   authenticate,
   validate(courseIdParamsSchema, 'params'),
   subscriptionsController.getCourseSubscriptionStatus,
+);
+
+// ── Self-service — cancel / resume / change plan ────────────────────────────
+
+router.post(
+  '/case-bank/cancel',
+  authenticate,
+  subscriptionsController.cancelCaseBankSubscription,
+);
+
+router.post(
+  '/case-bank/resume',
+  authenticate,
+  subscriptionsController.resumeCaseBankSubscription,
+);
+
+router.post(
+  '/course/:courseId/cancel',
+  authenticate,
+  validate(courseIdParamsSchema, 'params'),
+  subscriptionsController.cancelCourseSubscription,
+);
+
+router.post(
+  '/course/:courseId/resume',
+  authenticate,
+  validate(courseIdParamsSchema, 'params'),
+  subscriptionsController.resumeCourseSubscription,
+);
+
+router.post(
+  '/course/:courseId/change-plan',
+  authenticate,
+  validate(courseIdParamsSchema, 'params'),
+  validate(changePlanSchema),
+  subscriptionsController.changeCoursePlan,
 );
 
 export default router;

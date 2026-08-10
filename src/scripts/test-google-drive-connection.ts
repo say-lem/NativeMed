@@ -69,21 +69,30 @@ const main = async () => {
 
     const list = await drive.files.list({
       pageSize: 5,
-      fields: 'files(id,name,mimeType,shared)',
+      fields: 'files(id,name,mimeType,shared,driveId)',
       q: "trashed = false",
       orderBy: 'modifiedTime desc',
+      // Without these, files/folders living inside a Shared Drive are
+      // invisible to this call even when the service account has access.
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: 'allDrives',
     });
 
     const files = list.data.files ?? [];
     results.push(`Drive files.list: OK (${files.length} recent file(s) visible)`);
 
     for (const file of files.slice(0, 3)) {
-      results.push(`  • ${file.name ?? file.id} (${file.mimeType ?? 'unknown type'})`);
+      results.push(
+        `  • ${file.name ?? file.id} (${file.mimeType ?? 'unknown type'})` +
+          (file.driveId ? ` [Shared Drive: ${file.driveId}]` : ''),
+      );
     }
 
     if (files.length === 0) {
       results.push(
-        '  Note: no files returned — share course folders with the service account email (Editor role)',
+        '  Note: no files returned — share course folders with the service account email ' +
+          '(Editor role for a regular folder, Manager role if it\'s a Shared Drive)',
       );
     }
   } catch (error) {

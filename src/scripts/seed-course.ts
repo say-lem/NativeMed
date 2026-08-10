@@ -133,6 +133,7 @@ const seed = async () => {
   const pdfResult = await cloudinary.uploader.upload(PDF_PATH, {
     folder: CLOUDINARY_PDF_FOLDER,
     resource_type: 'raw',
+    type: 'authenticated',
     use_filename: false,
     unique_filename: true,
     overwrite: false,

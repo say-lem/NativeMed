@@ -31,6 +31,17 @@ export const hasCaseBankAccess = async (userId: Types.ObjectId): Promise<boolean
   return !!sub;
 };
 
+const findActiveCaseBankSubscription = async (
+  userId: Types.ObjectId,
+): Promise<ISubscription | null> => {
+  return Subscription.findOne({
+    userId,
+    type: 'case_bank',
+    status: { $in: ACTIVE_STATUSES },
+    currentPeriodEnd: { $gt: new Date() },
+  });
+};
+
 export const getActiveCourseSubscription = async (
   userId: Types.ObjectId,
   courseId: string,
@@ -351,6 +362,83 @@ export const cancelAllSubscriptionsForCourse = async (courseId: string): Promise
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Self-service — cancel / resume / change plan
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Manually-granted subscriptions (stripeSubscriptionId prefixed "manual_",
+ * e.g. admin comps) have no real Stripe object. Self-service cancel/resume/
+ * change-plan all reject these rather than mutating a flag that nothing will
+ * ever resolve — admins manage these via /enrollments/revoke instead.
+ */
+export const assertNotManual = (subscription: ISubscription): void => {
+  if (subscription.stripeSubscriptionId.startsWith('manual_')) {
+    throw new AppError(
+      'This subscription was granted manually — contact support to make changes',
+      400,
+    );
+  }
+};
+
+const resolveOwnSubscription = async (
+  userId: Types.ObjectId,
+  type: SubscriptionType,
+  courseId?: string,
+): Promise<ISubscription> => {
+  const subscription =
+    type === 'case_bank'
+      ? await findActiveCaseBankSubscription(userId)
+      : await getActiveCourseSubscription(userId, courseId!);
+
+  if (!subscription) throw new AppError('No active subscription found', 404);
+  return subscription;
+};
+
+export const scheduleCancellation = async (
+  userId: Types.ObjectId,
+  type: SubscriptionType,
+  courseId?: string,
+): Promise<ISubscription> => {
+  const subscription = await resolveOwnSubscription(userId, type, courseId);
+  assertNotManual(subscription);
+
+  if (subscription.cancelAtPeriodEnd) {
+    throw new AppError('Subscription is already scheduled to cancel', 400);
+  }
+
+  const { stripe } = await import('../../../config/stripe');
+  await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+    cancel_at_period_end: true,
+  });
+
+  subscription.cancelAtPeriodEnd = true;
+  await subscription.save();
+  return subscription;
+};
+
+export const resumeCancellation = async (
+  userId: Types.ObjectId,
+  type: SubscriptionType,
+  courseId?: string,
+): Promise<ISubscription> => {
+  const subscription = await resolveOwnSubscription(userId, type, courseId);
+  assertNotManual(subscription);
+
+  if (!subscription.cancelAtPeriodEnd) {
+    throw new AppError('Subscription is not scheduled to cancel', 400);
+  }
+
+  const { stripe } = await import('../../../config/stripe');
+  await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+    cancel_at_period_end: false,
+  });
+
+  subscription.cancelAtPeriodEnd = false;
+  await subscription.save();
+  return subscription;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Admin
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -389,4 +477,37 @@ export const assertNoConflictingSubscription = async (
   if (existing) {
     throw new AppError('You already have an active subscription for this course', 409);
   }
+};
+
+/**
+ * Manually grant Case Bank access (comped — no payment required), mirroring
+ * enrollmentsService.manualEnroll for courses. Uses the same "manual_"
+ * stripeSubscriptionId/stripeCustomerId prefix convention as comped course
+ * subscriptions, so it's correctly excluded from Stripe-facing logic
+ * (assertNotManual, cancelAllSubscriptionsForCourse) that expects a real
+ * Stripe object to exist.
+ */
+export const manualGrantCaseBank = async (
+  userId: Types.ObjectId,
+  grantedBy: Types.ObjectId,
+  durationDays: number,
+): Promise<ISubscription> => {
+  await assertNoConflictingSubscription(userId, 'case_bank');
+
+  const now = new Date();
+  const currentPeriodEnd = new Date(now);
+  currentPeriodEnd.setDate(currentPeriodEnd.getDate() + durationDays);
+
+  return Subscription.create({
+    userId,
+    type: 'case_bank',
+    billingInterval: 'monthly',
+    status: 'active',
+    stripeCustomerId: `manual_cus_${userId}`,
+    stripeSubscriptionId: `manual_sub_casebank_${userId}_${now.getTime()}`,
+    currentPeriodStart: now,
+    currentPeriodEnd,
+    cancelAtPeriodEnd: false,
+    grantedBy,
+  });
 };

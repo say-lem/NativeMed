@@ -3,6 +3,7 @@ import { asyncHandler } from '../../../shared/middleware/asyncHandler';
 import { ApiResponse } from '../../../shared/utils/apiResponse';
 import { AuthRequest } from '../../../shared/types';
 import * as enrollmentsService from '../service/enrollments.service';
+import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
 
 
 
@@ -53,11 +54,22 @@ export const getEnrollmentsByUser = asyncHandler(async (req: Request, res: Respo
 });
 
 export const manualEnroll = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { userId, type, courseId, accessTier, durationDays } = req.body;
+
+  if (type === 'case_bank') {
+    const subscription = await subscriptionsService.manualGrantCaseBank(
+      userId,
+      req.user!._id,
+      durationDays ?? 30,
+    );
+    return ApiResponse.created(res, 'Case Bank access granted', subscription);
+  }
+
   const enrollment = await enrollmentsService.manualEnroll(
-    getSingleParam(req.body.userId),
-    req.body.courseId,
+    getSingleParam(userId),
+    courseId,
     req.user!._id,
-    req.body.accessTier,
+    accessTier,
   );
   return ApiResponse.created(
     res,
