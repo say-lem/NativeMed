@@ -30,4 +30,15 @@ const courseContentSchema = new Schema<ICourseContent>(
 
 courseContentSchema.index({ courseId: 1, order: 1 });
 
+// publicId is internal (Cloudinary ref for PDF deletion/delivery) — never sent to clients,
+// same pattern as thumbnailPublicId on Course.
+courseContentSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    const safeRet = ret as unknown as Record<string, unknown>;
+    delete safeRet.publicId;
+    delete safeRet.__v;
+    return safeRet;
+  },
+});
+
 export const CourseContent = model<ICourseContent>('CourseContent', courseContentSchema);

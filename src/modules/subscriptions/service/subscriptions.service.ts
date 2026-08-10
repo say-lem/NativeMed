@@ -31,6 +31,17 @@ export const hasCaseBankAccess = async (userId: Types.ObjectId): Promise<boolean
   return !!sub;
 };
 
+const findActiveCaseBankSubscription = async (
+  userId: Types.ObjectId,
+): Promise<ISubscription | null> => {
+  return Subscription.findOne({
+    userId,
+    type: 'case_bank',
+    status: { $in: ACTIVE_STATUSES },
+    currentPeriodEnd: { $gt: new Date() },
+  });
+};
+
 export const getActiveCourseSubscription = async (
   userId: Types.ObjectId,
   courseId: string,
@@ -348,6 +359,83 @@ export const cancelAllSubscriptionsForCourse = async (courseId: string): Promise
       await subscription.save();
     }),
   );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Self-service — cancel / resume / change plan
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Manually-granted subscriptions (stripeSubscriptionId prefixed "manual_",
+ * e.g. admin comps) have no real Stripe object. Self-service cancel/resume/
+ * change-plan all reject these rather than mutating a flag that nothing will
+ * ever resolve — admins manage these via /enrollments/revoke instead.
+ */
+export const assertNotManual = (subscription: ISubscription): void => {
+  if (subscription.stripeSubscriptionId.startsWith('manual_')) {
+    throw new AppError(
+      'This subscription was granted manually — contact support to make changes',
+      400,
+    );
+  }
+};
+
+const resolveOwnSubscription = async (
+  userId: Types.ObjectId,
+  type: SubscriptionType,
+  courseId?: string,
+): Promise<ISubscription> => {
+  const subscription =
+    type === 'case_bank'
+      ? await findActiveCaseBankSubscription(userId)
+      : await getActiveCourseSubscription(userId, courseId!);
+
+  if (!subscription) throw new AppError('No active subscription found', 404);
+  return subscription;
+};
+
+export const scheduleCancellation = async (
+  userId: Types.ObjectId,
+  type: SubscriptionType,
+  courseId?: string,
+): Promise<ISubscription> => {
+  const subscription = await resolveOwnSubscription(userId, type, courseId);
+  assertNotManual(subscription);
+
+  if (subscription.cancelAtPeriodEnd) {
+    throw new AppError('Subscription is already scheduled to cancel', 400);
+  }
+
+  const { stripe } = await import('../../../config/stripe');
+  await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+    cancel_at_period_end: true,
+  });
+
+  subscription.cancelAtPeriodEnd = true;
+  await subscription.save();
+  return subscription;
+};
+
+export const resumeCancellation = async (
+  userId: Types.ObjectId,
+  type: SubscriptionType,
+  courseId?: string,
+): Promise<ISubscription> => {
+  const subscription = await resolveOwnSubscription(userId, type, courseId);
+  assertNotManual(subscription);
+
+  if (!subscription.cancelAtPeriodEnd) {
+    throw new AppError('Subscription is not scheduled to cancel', 400);
+  }
+
+  const { stripe } = await import('../../../config/stripe');
+  await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+    cancel_at_period_end: false,
+  });
+
+  subscription.cancelAtPeriodEnd = false;
+  await subscription.save();
+  return subscription;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
