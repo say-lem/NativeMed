@@ -44,7 +44,7 @@ const envSchema = z.object({
 
   // Stripe Price IDs — create products/prices in the Stripe Dashboard first
   STRIPE_PRICE_CASE_BANK_MONTHLY: z.string().min(1, 'STRIPE_PRICE_CASE_BANK_MONTHLY is required'),
-  // Legacy — course checkout uses priceMonthly / priceQuarterly (dynamic Stripe price_data).
+  // Legacy — course checkout uses the course's per-tier `pricing` (dynamic Stripe price_data).
   STRIPE_PRICE_COURSE_PDF_MONTHLY: z.string().optional(),
   STRIPE_PRICE_COURSE_PDF_QUARTERLY: z.string().optional(),
   STRIPE_PRICE_COURSE_FULL_MONTHLY: z.string().optional(),
