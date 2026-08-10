@@ -1,12 +1,21 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
+export interface ITierPricing {
+  monthly?: number;
+  quarterly?: number;
+}
+
+/** GBP — each tier must have at least one of monthly / quarterly set on the document. */
+export interface ICoursePricing {
+  mocksessions_only: ITierPricing;
+  mocksession_and_lectures: ITierPricing;
+}
+
 export interface ICourse extends Document {
   _id: Types.ObjectId;
   title: string;
   description: string;
-  /** GBP — at least one of priceMonthly / priceQuarterly must be set on the document. */
-  priceMonthly?: number;
-  priceQuarterly?: number;
+  pricing: ICoursePricing;
   thumbnailUrl?: string;
   thumbnailPublicId?: string; // select:false — Cloudinary ref, used only for thumbnail deletion
   // Google Drive folder IDs — share each folder with the service account (Editor role).
@@ -19,12 +28,22 @@ export interface ICourse extends Document {
   updatedAt: Date;
 }
 
+const tierPricingSchema = new Schema<ITierPricing>(
+  {
+    monthly: { type: Number, min: 0 },
+    quarterly: { type: Number, min: 0 },
+  },
+  { _id: false },
+);
+
 const courseSchema = new Schema<ICourse>(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true, trim: true },
-    priceMonthly: { type: Number, min: 0 },
-    priceQuarterly: { type: Number, min: 0 },
+    pricing: {
+      mocksessions_only: { type: tierPricingSchema, default: () => ({}) },
+      mocksession_and_lectures: { type: tierPricingSchema, default: () => ({}) },
+    },
     thumbnailUrl: { type: String },
     thumbnailPublicId: { type: String, select: false }, // internal Cloudinary ref — never sent to clients
     lecturesDriveFolderId: { type: String, select: false },

@@ -57,16 +57,15 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
     if (!tier) throw new AppError('tier is required for course subscriptions', 400);
 
     const course = await Course.findById(courseId).select(
-      'title priceMonthly priceQuarterly isPublished',
+      'title pricing isPublished',
     );
     if (!course) throw new AppError('Course not found', 404);
     if (!course.isPublished) throw new AppError('This course is not available for purchase', 400);
 
-    const priceGbp =
-      interval === 'monthly' ? course.priceMonthly : course.priceQuarterly;
+    const priceGbp = course.pricing?.[tier]?.[interval];
     if (priceGbp == null) {
       throw new AppError(
-        `This course is not available for ${interval} billing`,
+        `This course is not available for ${interval} billing on the ${tier} tier`,
         400,
       );
     }

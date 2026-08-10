@@ -314,6 +314,42 @@ export const getByStripeSubscriptionId = async (stripeSubscriptionId: string) =>
   return Subscription.findOne({ stripeSubscriptionId });
 };
 
+/**
+ * Cancel every active/past_due course subscription for a course (admin
+ * action — called when a course is deleted). Cancels on Stripe first so
+ * billing stops immediately, then marks the local record cancelled rather
+ * than waiting on the corresponding webhook. Manually-granted subscriptions
+ * (stripeSubscriptionId prefixed "manual_") have no real Stripe object to
+ * cancel, so those are skipped straight to the local update.
+ */
+export const cancelAllSubscriptionsForCourse = async (courseId: string): Promise<void> => {
+  const { stripe } = await import('../../../config/stripe');
+  const subscriptions = await Subscription.find({
+    type: 'course',
+    courseId,
+    status: { $in: ACTIVE_STATUSES },
+  });
+
+  await Promise.all(
+    subscriptions.map(async (subscription) => {
+      if (!subscription.stripeSubscriptionId.startsWith('manual_')) {
+        try {
+          await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
+        } catch (err) {
+          console.error(
+            `❌  Failed to cancel Stripe subscription ${subscription.stripeSubscriptionId}:`,
+            err,
+          );
+        }
+      }
+
+      subscription.status = 'cancelled';
+      subscription.cancelAtPeriodEnd = false;
+      await subscription.save();
+    }),
+  );
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Admin
 // ─────────────────────────────────────────────────────────────────────────────

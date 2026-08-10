@@ -145,8 +145,11 @@ const seed = async () => {
       'A sample course for development and testing. Covers core clinical examination ' +
       'techniques, structured history-taking, and communication skills for medical students ' +
       'preparing for OSCE assessments.',
-    priceMonthly: 49.99,
-    priceQuarterly: 129.99,
+    pricing: {
+      mocksession_and_lectures: { monthly: 49.99, quarterly: 129.99 },
+      // Placeholder — no historical mocksessions_only price existed. Adjust via the update endpoint.
+      mocksessions_only: { monthly: 29.99, quarterly: 79.99 },
+    },
     thumbnailUrl: thumbnailResult.secure_url,
     thumbnailPublicId: thumbnailResult.public_id,
     isPublished: true,
@@ -175,8 +178,8 @@ const seed = async () => {
   console.log('✅  Dummy course seeded successfully');
   console.log(`    Course ID  : ${course._id}`);
   console.log(`    Title      : ${course.title}`);
-  console.log(`    Monthly    : £${course.priceMonthly ?? '—'}`);
-  console.log(`    Quarterly  : £${course.priceQuarterly ?? '—'}`);
+  console.log(`    Full (mock+lectures) : £${course.pricing?.mocksession_and_lectures?.monthly ?? '—'}/mo, £${course.pricing?.mocksession_and_lectures?.quarterly ?? '—'}/qtr`);
+  console.log(`    Mock sessions only   : £${course.pricing?.mocksessions_only?.monthly ?? '—'}/mo, £${course.pricing?.mocksessions_only?.quarterly ?? '—'}/qtr`);
   console.log(`    Published  : ${course.isPublished}`);
   console.log(`    Thumbnail  : ${course.thumbnailUrl}`);
   console.log(`    PDF content: ${content.title} (order ${content.order})`);

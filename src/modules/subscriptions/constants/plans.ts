@@ -36,7 +36,7 @@ export const CASE_BANK_PLAN: PlanDefinition = {
   ],
 };
 
-/** Access tiers for course checkout — amounts come from each course's priceMonthly / priceQuarterly. */
+/** Access tiers for course checkout — amounts come from each course's per-tier pricing. */
 export const COURSE_PLANS: PlanDefinition[] = [
   {
     type: 'course',

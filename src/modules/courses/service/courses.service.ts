@@ -1,24 +1,58 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../../shared/utils/appError';
-import { Course } from '../model/courses.model';
+import { Course, ICourse, ICoursePricing, ITierPricing } from '../model/courses.model';
 import { CreateCourseInput, UpdateCourseInput, CourseFilterInput } from '../schema/courses.schema';
 import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
+import * as enrollmentsService from '../../enrollments/service/enrollments.service';
+import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
+
+// lecturesDriveFolderId / mockSessionsDriveFolderId are select:false by default
+// (never sent to public clients) — admin queries opt back in with this.
+const adminDriveFields = '+lecturesDriveFolderId +mockSessionsDriveFolderId';
+
+/**
+ * Admin-facing course serialization. Unlike the schema's default toJSON
+ * transform (which strips the Drive folder IDs for public safety), this
+ * keeps them so the admin edit form can pre-fill instead of asking the
+ * admin to re-enter them on every update.
+ */
+export const toAdminCourseJSON = (course: ICourse) => {
+  const obj = course.toObject() as Record<string, unknown>;
+  delete obj.thumbnailPublicId;
+  delete obj.__v;
+  return obj;
+};
 
 export const createCourse = async (
   input: CreateCourseInput,
   adminId: Types.ObjectId,
 ) => {
-  return Course.create({ ...input, createdBy: adminId });
+  const course = await Course.create({ ...input, createdBy: adminId });
+  return toAdminCourseJSON(course);
 };
 
-export const assertCourseHasPricing = (pricing: {
-  priceMonthly?: number | null;
-  priceQuarterly?: number | null;
-}): void => {
-  if (pricing.priceMonthly == null && pricing.priceQuarterly == null) {
-    throw new AppError('At least one of priceMonthly or priceQuarterly is required', 400);
+const hasTierPrice = (tier?: ITierPricing): boolean =>
+  tier?.monthly != null || tier?.quarterly != null;
+
+// existing.pricing.<tier> is a Mongoose subdocument — spreading it directly
+// does not reliably copy its paths, so normalize to a plain object first.
+const toPlainTier = (tier?: ITierPricing): ITierPricing =>
+  tier ? { monthly: tier.monthly, quarterly: tier.quarterly } : {};
+
+export const assertCourseHasPricing = (pricing: Partial<ICoursePricing>): void => {
+  if (!hasTierPrice(pricing.mocksessions_only)) {
+    throw new AppError(
+      'At least one of monthly or quarterly price is required for the mocksessions_only tier',
+      400,
+    );
+  }
+  if (!hasTierPrice(pricing.mocksession_and_lectures)) {
+    throw new AppError(
+      'At least one of monthly or quarterly price is required for the mocksession_and_lectures tier',
+      400,
+    );
   }
 };
 
@@ -29,16 +63,28 @@ export const updateCourse = async (
   const existing = await Course.findById(courseId);
   if (!existing) throw new AppError('Course not found', 404);
 
-  if (input.priceMonthly !== undefined || input.priceQuarterly !== undefined) {
-    assertCourseHasPricing({
-      priceMonthly: input.priceMonthly ?? existing.priceMonthly,
-      priceQuarterly: input.priceQuarterly ?? existing.priceQuarterly,
-    });
+  let mergedPricing: ICoursePricing | undefined;
+  if (input.pricing) {
+    mergedPricing = {
+      mocksessions_only: {
+        ...toPlainTier(existing.pricing?.mocksessions_only),
+        ...input.pricing.mocksessions_only,
+      },
+      mocksession_and_lectures: {
+        ...toPlainTier(existing.pricing?.mocksession_and_lectures),
+        ...input.pricing.mocksession_and_lectures,
+      },
+    };
+    assertCourseHasPricing(mergedPricing);
   }
 
-  const course = await Course.findByIdAndUpdate(courseId, input, { new: true });
+  const course = await Course.findByIdAndUpdate(
+    courseId,
+    mergedPricing ? { ...input, pricing: mergedPricing } : input,
+    { new: true },
+  ).select(adminDriveFields);
   if (!course) throw new AppError('Course not found', 404);
-  return course;
+  return toAdminCourseJSON(course);
 };
 
 /**
@@ -106,9 +152,21 @@ export const updateCourseThumbnail = async (
   return updated;
 };
 
+/**
+ * Deleting a course cascades: every enrolled user is unenrolled (enrollment
+ * deactivated, Drive access pulled) and any subscription still billing for
+ * this course is cancelled. Both must run before the course row is removed —
+ * Drive revocation needs the course's folder IDs, which no longer resolve
+ * once it's gone.
+ */
 export const deleteCourse = async (courseId: string): Promise<void> => {
-  const course = await Course.findByIdAndDelete(courseId);
+  const course = await Course.findById(courseId);
   if (!course) throw new AppError('Course not found', 404);
+
+  await enrollmentsService.revokeAllEnrollmentsForCourse(courseId);
+  await subscriptionsService.cancelAllSubscriptionsForCourse(courseId);
+
+  await Course.findByIdAndDelete(courseId);
 };
 
 export const togglePublish = async (courseId: string) => {
@@ -134,6 +192,7 @@ export const getAllCoursesAdmin = async (params: CourseFilterInput) => {
 
   const [items, total] = await Promise.all([
     Course.find(filter)
+      .select(adminDriveFields)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -141,23 +200,31 @@ export const getAllCoursesAdmin = async (params: CourseFilterInput) => {
     Course.countDocuments(filter),
   ]);
 
-  return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+  return {
+    items: items.map(toAdminCourseJSON),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 };
 
 /**
  * Admin detail — returns unpublished courses too.
  */
 export const getCourseByIdAdmin = async (courseId: string) => {
-  const course = await Course.findById(courseId).populate('createdBy', 'fullName email');
+  const course = await Course.findById(courseId)
+    .select(adminDriveFields)
+    .populate('createdBy', 'fullName email');
   if (!course) throw new AppError('Course not found', 404);
-  return course;
+  return toAdminCourseJSON(course);
 };
 
 // ── Public / user ─────────────────────────────────────────────────────────────
 
 /** Public course fields returned from list/detail endpoints (prices in GBP). */
 const publicCourseFields =
-  'title description priceMonthly priceQuarterly thumbnailUrl isPublished createdAt updatedAt';
+  'title description pricing thumbnailUrl isPublished createdAt updatedAt';
 
 export const getAllPublished = async () => {
   return Course.find({ isPublished: true })
