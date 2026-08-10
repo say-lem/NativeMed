@@ -478,3 +478,36 @@ export const assertNoConflictingSubscription = async (
     throw new AppError('You already have an active subscription for this course', 409);
   }
 };
+
+/**
+ * Manually grant Case Bank access (comped — no payment required), mirroring
+ * enrollmentsService.manualEnroll for courses. Uses the same "manual_"
+ * stripeSubscriptionId/stripeCustomerId prefix convention as comped course
+ * subscriptions, so it's correctly excluded from Stripe-facing logic
+ * (assertNotManual, cancelAllSubscriptionsForCourse) that expects a real
+ * Stripe object to exist.
+ */
+export const manualGrantCaseBank = async (
+  userId: Types.ObjectId,
+  grantedBy: Types.ObjectId,
+  durationDays: number,
+): Promise<ISubscription> => {
+  await assertNoConflictingSubscription(userId, 'case_bank');
+
+  const now = new Date();
+  const currentPeriodEnd = new Date(now);
+  currentPeriodEnd.setDate(currentPeriodEnd.getDate() + durationDays);
+
+  return Subscription.create({
+    userId,
+    type: 'case_bank',
+    billingInterval: 'monthly',
+    status: 'active',
+    stripeCustomerId: `manual_cus_${userId}`,
+    stripeSubscriptionId: `manual_sub_casebank_${userId}_${now.getTime()}`,
+    currentPeriodStart: now,
+    currentPeriodEnd,
+    cancelAtPeriodEnd: false,
+    grantedBy,
+  });
+};

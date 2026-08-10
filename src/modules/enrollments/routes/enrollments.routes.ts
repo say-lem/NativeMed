@@ -53,7 +53,7 @@ router.get(
   enrollmentsController.getEnrollmentsByUser,
 );
 
-// Manually enroll a user (comped / gifted access — no payment required)
+// Manually grant access — comped course enrollment or Case Bank, by `type` (no payment required)
 router.post(
   '/manual',
   authenticate,
