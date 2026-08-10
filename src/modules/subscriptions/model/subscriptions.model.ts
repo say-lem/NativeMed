@@ -20,6 +20,8 @@ export interface ISubscription extends Document {
   currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
   lastStripeEventCreated?: number;
+  /** Set only for admin-comped subscriptions (stripeSubscriptionId prefixed "manual_") — who granted it. */
+  grantedBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,6 +44,7 @@ const subscriptionSchema = new Schema<ISubscription>(
     currentPeriodEnd:     { type: Date, required: true },
     cancelAtPeriodEnd:    { type: Boolean, default: false },
     lastStripeEventCreated: { type: Number },
+    grantedBy:            { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true },
 );

@@ -22,6 +22,15 @@ export const normalizeGooglePrivateKey = (raw: string): string => {
 //   2. Enable the Google Drive API
 //   3. Download the JSON key — copy client_email and private_key into .env
 //   4. Share each Drive folder with the service account email (Editor role)
+//
+// Shared Drives: if a course's folders live inside a Shared Drive (Team
+// Drive) rather than a regular "My Drive" folder, there's no "Editor" role —
+// use Manager instead (Content Manager can share folders too, but only if a
+// Manager has enabled "allow Content Managers to share outside the drive";
+// Manager works unconditionally). Every call below passes
+// supportsAllDrives: true, which the Drive API requires to even locate a
+// Shared Drive item — omitting it fails with "File not found" regardless of
+// the service account's role.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const isDriveConfigured =
@@ -93,6 +102,9 @@ export const addDrivePermission = async (
         role: 'reader',
         emailAddress: email,
       },
+      // Required for folderId to resolve when it lives inside a Shared Drive —
+      // without this the API returns "File not found" even with correct access.
+      supportsAllDrives: true,
     });
   });
 };
@@ -110,6 +122,7 @@ export const removeDrivePermission = async (
     const res = await d.permissions.list({
       fileId: folderId,
       fields: 'permissions(id,emailAddress)',
+      supportsAllDrives: true,
     });
 
     const perm = res.data.permissions?.find(
@@ -125,6 +138,7 @@ export const removeDrivePermission = async (
     await d.permissions.delete({
       fileId: folderId,
       permissionId: perm.id,
+      supportsAllDrives: true,
     });
   });
 };
@@ -159,6 +173,7 @@ export const uploadFileToDrive = async (
         body: Readable.from(buffer),
       },
       fields: 'id,webViewLink',
+      supportsAllDrives: true,
     });
 
     const fileId = res.data.id;
@@ -178,6 +193,6 @@ export const uploadFileToDrive = async (
  */
 export const deleteFileFromDrive = async (fileId: string): Promise<void> => {
   await withDrive(`deleteFile(${fileId})`, async (d) => {
-    await d.files.delete({ fileId });
+    await d.files.delete({ fileId, supportsAllDrives: true });
   });
 };
