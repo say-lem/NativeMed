@@ -315,6 +315,26 @@ export const revokeEnrollment = async (
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Revoke all enrollments for a course (admin action — called when a course is
+// deleted). Unlike revokeEnrollment, this only touches currently-active
+// enrollments and never throws, so it's safe to run as part of a cascade.
+// Must be called with the course still in the DB — Drive folder revocation
+// looks the course back up by ID to find its folders.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const revokeAllEnrollmentsForCourse = async (courseId: string): Promise<void> => {
+  const enrollments = await Enrollment.find({ courseId, isActive: true });
+
+  await Promise.all(
+    enrollments.map(async (enrollment) => {
+      enrollment.isActive = false;
+      await enrollment.save();
+      await revokeDriveFolders(enrollment.userId as Types.ObjectId, courseId, enrollment.accessTier);
+    }),
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Restore enrollment (admin action)
 // Re-activates a previously revoked enrollment and re-grants Drive access.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -344,7 +364,7 @@ export const restoreEnrollment = async (enrollmentId: string) => {
 
 export const getMyEnrollments = async (userId: Types.ObjectId) => {
   return Enrollment.find({ userId, isActive: true })
-    .populate('courseId', 'title description thumbnailUrl priceMonthly priceQuarterly')
+    .populate('courseId', 'title description thumbnailUrl pricing')
     .sort({ accessGrantedAt: -1 });
 };
 
@@ -369,7 +389,7 @@ export const getAllEnrollments = async (page = 1, limit = 20) => {
   const [items, total] = await Promise.all([
     Enrollment.find()
       .populate('userId', 'fullName email phone')
-      .populate('courseId', 'title priceMonthly priceQuarterly')
+      .populate('courseId', 'title pricing')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit),
@@ -396,6 +416,6 @@ export const getEnrollmentsByCourse = async (
 
 export const getEnrollmentsByUser = async (userId: string) => {
   return Enrollment.find({ userId })
-    .populate('courseId', 'title thumbnailUrl priceMonthly priceQuarterly')
+    .populate('courseId', 'title thumbnailUrl pricing')
     .sort({ accessGrantedAt: -1 });
 };
