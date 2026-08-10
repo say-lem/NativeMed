@@ -100,6 +100,7 @@ const main = async () => {
     const pdfResult = await cloudinary.uploader.upload(PDF_PATH, {
       folder: 'native-med/courses/pdfs',
       resource_type: 'raw',
+      type: 'authenticated',
       use_filename: true,
       unique_filename: true,
     });
