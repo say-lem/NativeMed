@@ -36,6 +36,13 @@ const optionalTierPricing = z.object({
   quarterly: gbpPrice.optional(),
 });
 
+const communityChannelLink = z
+  .string()
+  .trim()
+  .url('Must be a valid URL')
+  .nullable()
+  .optional();
+
 export const createCourseSchema = z.object({
   title: z.string().min(3).trim(),
   description: z.string().min(10).trim(),
@@ -47,6 +54,9 @@ export const createCourseSchema = z.object({
   // Accept a full Drive folder URL or the raw folder ID — extracted server-side.
   lecturesDriveFolderId: driveFolderLink,
   mockSessionsDriveFolderId: driveFolderLink,
+  // Community invite links — emailed to users when they enroll.
+  telegramChannel: communityChannelLink,
+  whatsappChannel: communityChannelLink,
 });
 
 export const updateCourseSchema = z.object({
@@ -61,6 +71,8 @@ export const updateCourseSchema = z.object({
   isPublished: z.boolean().optional(),
   lecturesDriveFolderId: driveFolderLink.optional(),
   mockSessionsDriveFolderId: driveFolderLink.optional(),
+  telegramChannel: communityChannelLink,
+  whatsappChannel: communityChannelLink,
 });
 
 export const courseIdSchema = z.object({
