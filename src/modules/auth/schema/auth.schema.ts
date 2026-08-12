@@ -12,6 +12,12 @@ const passwordField = z
 
 const mongoId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid ID');
 
+// Month/year the user intends to sit the exam, e.g. "03/26"
+const examSittingField = z
+  .string()
+  .trim()
+  .regex(/^(0[1-9]|1[0-2])\/\d{2}$/, 'examSitting must be in MM/YY format');
+
 // Public auth schemas
 
 export const registerSchema = z.object({
@@ -22,10 +28,10 @@ export const registerSchema = z.object({
   whatsappNumber: z.string().trim().optional(),
   telegramUsername: z
     .string()
+    .min(1, 'Telegram username is required')
     .trim()
-    .transform((v) => (v.startsWith('@') ? v : `@${v}`))
-    .optional(),
-  examSitting: z.string().trim().optional(),
+    .transform((v) => (v.startsWith('@') ? v : `@${v}`)),
+  examSitting: examSittingField,
 });
 
 export const loginSchema = z.object({
@@ -79,7 +85,7 @@ export const updateProfileSchema = z.object({
     .trim()
     .transform((v) => (v && !v.startsWith('@') ? `@${v}` : v))
     .optional(),
-  examSitting: z.string().trim().optional(),
+  examSitting: examSittingField.optional(),
 });
 
 
@@ -101,7 +107,7 @@ export const updateUserByAdminSchema = z.object({
   fullName: z.string().min(2).trim().optional(),
   phone: z.string().min(7).trim().optional(),
   isActive: z.boolean().optional(),
-  examSitting: z.string().trim().optional(),
+  examSitting: examSittingField.optional(),
 });
 
 export const adminUserIdSchema = z.object({

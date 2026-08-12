@@ -22,6 +22,8 @@ export interface ICourse extends Document {
   // On enrollment, users are granted Viewer access based on their subscription tier.
   lecturesDriveFolderId?: string;     // select:false — lectures folder
   mockSessionsDriveFolderId?: string; // select:false — mock sessions folder
+  telegramChannel?: string | null;    // community invite link, sent to enrollees
+  whatsappChannel?: string | null;    // community invite link, sent to enrollees
   isPublished: boolean;
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -48,6 +50,8 @@ const courseSchema = new Schema<ICourse>(
     thumbnailPublicId: { type: String, select: false }, // internal Cloudinary ref — never sent to clients
     lecturesDriveFolderId: { type: String, select: false },
     mockSessionsDriveFolderId: { type: String, select: false },
+    telegramChannel: { type: String, trim: true, default: null },
+    whatsappChannel: { type: String, trim: true, default: null },
     isPublished: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
