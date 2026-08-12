@@ -5,6 +5,7 @@ import { Enrollment } from '../model/enrollments.model';
 import { Course } from '../../courses/model/courses.model';
 import { User } from '../../auth/model/auth.model';
 import { addDrivePermission, removeDrivePermission } from '../../../config/google-drive';
+import { sendEnrollmentEmail } from '../email/enrollments.email.service';
 
 type CourseDriveFolders = {
   lecturesDriveFolderId?: string;
@@ -153,6 +154,30 @@ const grantLecturesFolderIfUpgraded = async (
   }
 };
 
+// Fire-and-forget — don't let email failure block the enrollment flow.
+const sendEnrollmentConfirmation = async (
+  userId: Types.ObjectId | string,
+  courseId: string,
+) => {
+  try {
+    const [user, course] = await Promise.all([
+      User.findById(userId).select('email fullName').lean(),
+      Course.findById(courseId).select('title telegramChannel whatsappChannel').lean(),
+    ]);
+    if (!user || !course) return;
+
+    await sendEnrollmentEmail(
+      user.email,
+      user.fullName,
+      course.title,
+      course.telegramChannel,
+      course.whatsappChannel,
+    );
+  } catch (err) {
+    console.error('❌  Enrollment email failed:', err);
+  }
+};
+
 const DRIVE_ENROLLMENT_MESSAGE =
   'You have been enrolled in a Native Med course. ' +
   'You now have access to the course materials on Google Drive.';
@@ -208,6 +233,9 @@ export const createEnrollment = async (
   paymentId: Types.ObjectId,
   accessTier: CourseAccessTier = 'mocksession_and_lectures',
 ) => {
+  const existing = await Enrollment.findOne({ userId, courseId });
+  const wasActive = existing?.isActive ?? false;
+
   const enrollment = await Enrollment.findOneAndUpdate(
     { userId, courseId },
     {
@@ -224,6 +252,11 @@ export const createEnrollment = async (
 
   await grantDriveFolders(userId, courseId, accessTier, DRIVE_ENROLLMENT_MESSAGE);
 
+  // Only on the transition into an active enrollment — skips webhook retries.
+  if (!wasActive) {
+    void sendEnrollmentConfirmation(userId, courseId);
+  }
+
   return enrollment;
 };
 
@@ -235,6 +268,7 @@ export const createEnrollmentFromSubscription = async (
 ) => {
   const existing = await Enrollment.findOne({ userId, courseId });
   const previousTier = existing?.accessTier;
+  const wasActive = existing?.isActive ?? false;
 
   const enrollment = await Enrollment.findOneAndUpdate(
     { userId, courseId },
@@ -252,6 +286,11 @@ export const createEnrollmentFromSubscription = async (
   );
 
   await syncDriveAccessForTierChange(userId, courseId, previousTier, accessTier);
+
+  // Only on the transition into an active enrollment — skips tier changes/retries.
+  if (!wasActive) {
+    void sendEnrollmentConfirmation(userId, courseId);
+  }
 
   return enrollment;
 };
@@ -291,6 +330,8 @@ export const manualEnroll = async (
   );
 
   await grantDriveFolders(userId, courseId, accessTier, DRIVE_COMPLIMENTARY_MESSAGE);
+
+  void sendEnrollmentConfirmation(userId, courseId);
 
   return enrollment;
 };

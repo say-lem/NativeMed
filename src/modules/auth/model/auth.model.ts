@@ -12,6 +12,8 @@ export interface IUser extends Document {
   phone: string;
   whatsappNumber?: string;
   telegramUsername?: string;
+  // Month/year the user intends to sit the exam, stored as MM/YY
+  // Required for self-registered users (enforced in registerSchema); admins have none.
   examSitting?: string;
   role: UserRole;
   isActive: boolean;
@@ -36,7 +38,11 @@ const userSchema = new Schema<IUser>(
     phone: { type: String, required: true, trim: true },
     whatsappNumber: { type: String, trim: true },
     telegramUsername: { type: String, trim: true },
-    examSitting: { type: String, trim: true },
+    examSitting: {
+      type: String,
+      trim: true,
+      match: [/^(0[1-9]|1[0-2])\/\d{2}$/, 'examSitting must be in MM/YY format'],
+    },
     role: {
       type: String,
       enum: ['user', 'admin'],
