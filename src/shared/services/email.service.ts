@@ -31,6 +31,8 @@ export interface MailOptions {
   subject: string;
   html: string;
   text?: string;
+  // Lets recipients reply straight to an end-user address instead of the `from` sender
+  replyTo?: string;
   // When true, body content is suppressed from dev logs (reset links, temp passwords, etc.)
   containsSensitiveData?: boolean;
 }
@@ -52,6 +54,7 @@ export const sendMail = async (options: MailOptions): Promise<void> => {
   const mailOptions = {
     from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM_ADDRESS}>`,
     to: options.to,
+    replyTo: options.replyTo,
     subject: options.subject,
     html: options.html,
     text: options.text,
