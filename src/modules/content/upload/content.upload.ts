@@ -1,7 +1,7 @@
 import multer, { FileFilterCallback } from 'multer';
-import rateLimit from 'express-rate-limit';
 import { Request, Response, NextFunction } from 'express';
 import { ApiResponse } from '../../../shared/utils/apiResponse';
+import { createLeakyBucketLimiter } from '../../../shared/middleware/leakyBucket';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Only PDFs are uploaded through the API.
@@ -35,12 +35,10 @@ export const uploadPdf = multer({
 // Rate limiter — 20 PDF uploads per hour per IP
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const uploadRateLimiter = rateLimit({
+export const uploadRateLimiter = createLeakyBucketLimiter({
+  capacity: 20,
   windowMs: 60 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: 'Upload limit reached. Try again in an hour.' },
+  message: 'Upload limit reached. Try again in an hour.',
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

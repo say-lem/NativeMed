@@ -30,6 +30,11 @@ const envSchema = z.object({
   EMAIL_FROM_NAME: z.string().default('Native Med'),
   EMAIL_FROM_ADDRESS: z.string().email().default('noreply@nativemed.com'),
 
+  // ── Contact form ──────────────────────────────────────────────────────────────
+  // Inbox that receives public contact-form submissions. Falls back to
+  // EMAIL_FROM_ADDRESS if unset.
+  CONTACT_EMAIL_TO: z.string().email().optional(),
+
   // ── Password reset ───────────────────────────────────────────────────────────
   RESET_TOKEN_EXPIRES_MINUTES: z.coerce.number().default(15),
 
