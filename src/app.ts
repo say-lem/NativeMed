@@ -3,10 +3,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
 
 import { env } from './config/env';
 import { errorHandler } from './shared/middleware/errorHandler';
+import { createLeakyBucketLimiter } from './shared/middleware/leakyBucket';
 
 import authRoutes from './modules/auth/routes/auth.route';
 import coursesRoutes from './modules/courses/routes/courses.routes';
@@ -17,6 +17,7 @@ import adminRoutes from './modules/enrollments/routes/admin.routes';
 import paymentsRoutes from './modules/payments/routes/payments.routes';
 import paymentsWebhookRoutes from './modules/payments/routes/webhook.routes';
 import subscriptionsRoutes from './modules/subscriptions/routes/subscriptions.routes';
+import contactRoutes from './modules/contact/routes/contact.route';
 
 const app = express();
 
@@ -33,28 +34,19 @@ app.use(
   }),
 );
 
-// ── Rate limiting 
-const makeLimiter = (max: number, message: string) =>
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { success: false, message },
-  });
+// ── Rate limiting — leaky bucket (meter) ─────────────────────────────────────
+// Continuously-draining bucket per client, not a fixed window: capacity is
+// the burst allowance, windowMs is how long a full bucket takes to drain.
+// See shared/middleware/leakyBucket.ts for why this replaced express-rate-limit.
+const makeLimiter = (capacity: number, message: string) =>
+  createLeakyBucketLimiter({ capacity, windowMs: 15 * 60 * 1000, message });
 
 const authLimiter = makeLimiter(20, 'Too many login attempts, please try again later.');
 const adminLimiter = makeLimiter(60, 'Too many admin requests, please try again later.');
 const paymentsLimiter = makeLimiter(80, 'Too many payment requests, please try again later.');
 const contentLimiter = makeLimiter(150, 'Too many requests, please try again later.');
 const generalLimiter = makeLimiter(200, 'Too many requests, please try again later.');
-const healthLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 600,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: 'Too many health checks, please try again later.' },
-});
+const healthLimiter = makeLimiter(600, 'Too many health checks, please try again later.');
 
 const API = '/api/v1';
 
@@ -86,6 +78,10 @@ app.use(`${API}/payments`, paymentsLimiter, paymentsRoutes);
 app.use(`${API}/subscriptions`, paymentsLimiter, subscriptionsRoutes);
 app.use(`${API}/admin`, adminLimiter, adminRoutes);
 app.use(`${API}/cases`, generalLimiter, casesRoutes);
+// Contact form is throttled internally via a leaky-bucket queue (see contact module) —
+// submissions are shaped/smoothed, not just rejected outright, since the endpoint's
+// sole job is dispatching an email.
+app.use(`${API}/contact`, contactRoutes);
 
 // ── 404 handler 
 app.use((_req, res) => {
