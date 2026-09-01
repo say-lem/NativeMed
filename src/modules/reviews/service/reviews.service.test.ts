@@ -2,7 +2,13 @@ import { Types } from 'mongoose';
 import * as reviewsService from './reviews.service';
 import { Review } from '../model/reviews.model';
 
-const validInput = { name: 'Ada Lovelace', rating: 5, review: 'Absolutely fantastic course material.' };
+const validInput = {
+  name: 'Ada Lovelace',
+  examSat: 'NCLEX-RN',
+  datePassed: '03/26',
+  rating: 5,
+  review: 'Absolutely fantastic course material.',
+};
 
 describe('reviews.service', () => {
   describe('createReview', () => {

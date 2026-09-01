@@ -10,6 +10,8 @@ import { CreateReviewInput, UpdateReviewInput } from '../schema/reviews.schema';
 export const createReview = async (input: CreateReviewInput) => {
   return Review.create({
     name: input.name,
+    examSat: input.examSat,
+    datePassed: input.datePassed,
     rating: input.rating,
     review: input.review,
     status: 'pending',
@@ -19,7 +21,7 @@ export const createReview = async (input: CreateReviewInput) => {
 export const getApprovedReviews = async (page = 1, limit = 20) => {
   const [items, total] = await Promise.all([
     Review.find({ status: 'approved' })
-      .select('name rating review createdAt')
+      .select('name examSat datePassed rating review createdAt')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit),
