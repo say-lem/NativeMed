@@ -2,8 +2,11 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../../../shared/middleware/asyncHandler';
 import { ApiResponse } from '../../../shared/utils/apiResponse';
 import { AuthRequest } from '../../../shared/types';
-import { CreateActivityInput } from '../schema/activities.schema';
+import { CreateActivityInput, UpdateActivityInput } from '../schema/activities.schema';
 import * as activitiesService from '../service/activities.service';
+
+const getSingleParam = (value: string | string[] | undefined): string =>
+  Array.isArray(value) ? value[0] : (value ?? '');
 
 export const createActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
   const input = req.body as CreateActivityInput;
@@ -16,4 +19,15 @@ export const getAllActivities = asyncHandler(async (req: Request, res: Response)
   const limit = Number(req.query.limit) || 20;
   const result = await activitiesService.getAllActivities(page, limit);
   return ApiResponse.success(res, 'Activities fetched', result);
+});
+
+export const updateActivity = asyncHandler(async (req: Request, res: Response) => {
+  const input = req.body as UpdateActivityInput;
+  const activity = await activitiesService.updateActivity(getSingleParam(req.params.activityId), input);
+  return ApiResponse.success(res, 'Activity updated', activity);
+});
+
+export const deleteActivity = asyncHandler(async (req: Request, res: Response) => {
+  await activitiesService.deleteActivity(getSingleParam(req.params.activityId));
+  return ApiResponse.success(res, 'Activity deleted');
 });

@@ -4,7 +4,10 @@
     "module": "commonjs",
     "lib": ["ES2020"],
     "typeRoots": ["./node_modules/@types"],
-    "types": ["node"],
+    // "jest" is here so the editor resolves describe/it/expect in the
+    // *.test.ts files co-located under src/modules/**/service/ — those
+    // files are still excluded from the actual build below.
+    "types": ["node", "jest"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -17,5 +20,5 @@
     "sourceMap": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
 }
