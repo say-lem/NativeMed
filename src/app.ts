@@ -18,6 +18,10 @@ import paymentsRoutes from './modules/payments/routes/payments.routes';
 import paymentsWebhookRoutes from './modules/payments/routes/webhook.routes';
 import subscriptionsRoutes from './modules/subscriptions/routes/subscriptions.routes';
 import contactRoutes from './modules/contact/routes/contact.route';
+import reviewsRoutes from './modules/reviews/routes/reviews.route';
+import reviewsAdminRoutes from './modules/reviews/routes/admin.routes';
+import activitiesRoutes from './modules/activities/routes/activities.route';
+import activitiesAdminRoutes from './modules/activities/routes/admin.routes';
 
 const app = express();
 
@@ -82,6 +86,10 @@ app.use(`${API}/cases`, generalLimiter, casesRoutes);
 // submissions are shaped/smoothed, not just rejected outright, since the endpoint's
 // sole job is dispatching an email.
 app.use(`${API}/contact`, contactRoutes);
+app.use(`${API}/reviews`, generalLimiter, reviewsRoutes);
+app.use(`${API}/admin/reviews`, adminLimiter, reviewsAdminRoutes);
+app.use(`${API}/activities`, generalLimiter, activitiesRoutes);
+app.use(`${API}/admin/activities`, adminLimiter, activitiesAdminRoutes);
 
 // ── 404 handler 
 app.use((_req, res) => {
