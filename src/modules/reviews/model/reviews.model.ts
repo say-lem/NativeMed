@@ -5,6 +5,9 @@ export type ReviewStatus = 'pending' | 'approved' | 'revoked';
 export interface IReview extends Document {
   _id: Types.ObjectId;
   name: string;
+  examSat: string;
+  // Month/year the exam was passed, stored as MM/YY
+  datePassed: string;
   rating: number;
   review: string;
   status: ReviewStatus;
@@ -17,6 +20,13 @@ export interface IReview extends Document {
 const reviewSchema = new Schema<IReview>(
   {
     name:   { type: String, required: true, trim: true, maxlength: 100 },
+    examSat: { type: String, required: true, trim: true, maxlength: 100 },
+    datePassed: {
+      type: String,
+      required: true,
+      trim: true,
+      match: [/^(0[1-9]|1[0-2])\/\d{2}$/, 'datePassed must be in MM/YY format'],
+    },
     rating: { type: Number, required: true, min: 1, max: 5 },
     review: { type: String, required: true, trim: true, maxlength: 2000 },
     status: { type: String, enum: ['pending', 'approved', 'revoked'], default: 'pending' },
