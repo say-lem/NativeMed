@@ -8,7 +8,12 @@ import * as activitiesController from '../controller/activities.controller';
 const router = Router();
 router.use(authenticate, authorize('admin'));
 
-// Post a new activity — date + description
+router.get('/', activitiesController.getAdminActivities);
+router.patch('/:activityId/publish', activitiesController.publishActivity);
+router.patch('/:activityId/unpublish', activitiesController.unpublishActivity);
+router.patch('/:activityId/archive', activitiesController.unpublishActivity);
+
+// Post a new activity
 router.post('/', validate(createActivitySchema), activitiesController.createActivity);
 
 // Edit an existing activity

@@ -31,3 +31,18 @@ export const deleteActivity = asyncHandler(async (req: Request, res: Response) =
   await activitiesService.deleteActivity(getSingleParam(req.params.activityId));
   return ApiResponse.success(res, 'Activity deleted');
 });
+
+export const getAdminActivities = asyncHandler(async (req: Request, res: Response) => {
+  const result = await activitiesService.getAllActivities(Number(req.query.page) || 1, Number(req.query.limit) || 20, true);
+  return ApiResponse.success(res, 'Activities fetched', result);
+});
+
+export const publishActivity = asyncHandler(async (req: Request, res: Response) => {
+  const activity = await activitiesService.setActivityPublished(getSingleParam(req.params.activityId), true);
+  return ApiResponse.success(res, 'Activity published', activity);
+});
+
+export const unpublishActivity = asyncHandler(async (req: Request, res: Response) => {
+  const activity = await activitiesService.setActivityPublished(getSingleParam(req.params.activityId), false);
+  return ApiResponse.success(res, 'Activity unpublished', activity);
+});
