@@ -5,10 +5,12 @@ import { validate } from '../../../shared/middleware/validate';
 import {
   createLinkFreeProductSchema,
   uploadPdfFreeProductSchema,
+  uploadBlogFreeProductSchema,
   updateFreeProductSchema,
 } from '../schema/freeProducts.schema';
 import {
   uploadPdf as uploadPdfMiddleware,
+  uploadCoverImage as uploadCoverImageMiddleware,
   uploadRateLimiter as uploadRateLimiterMiddleware,
   concurrencyGuard as concurrencyGuardMiddleware,
 } from '../upload/freeProducts.upload';
@@ -32,7 +34,28 @@ router.post(
   freeProductsController.uploadPdfProduct,
 );
 
+// Blog product — cover image upload + written content. Expected to be the
+// common case; link/pdf remain for the minority that's just pointer material.
+router.post(
+  '/upload-blog',
+  uploadRateLimiterMiddleware,
+  concurrencyGuardMiddleware,
+  uploadCoverImageMiddleware.single('coverImage'),
+  validate(uploadBlogFreeProductSchema),
+  freeProductsController.uploadBlogProduct,
+);
+
 router.patch('/:productId', validate(updateFreeProductSchema), freeProductsController.updateProduct);
+
+// Replace a blog's cover image in place (destroy-then-upload, see service)
+router.patch(
+  '/:productId/cover-image',
+  uploadRateLimiterMiddleware,
+  concurrencyGuardMiddleware,
+  uploadCoverImageMiddleware.single('coverImage'),
+  freeProductsController.replaceCoverImage,
+);
+
 router.patch('/:productId/publish', freeProductsController.publishProduct);
 router.patch('/:productId/unpublish', freeProductsController.unpublishProduct);
 router.patch('/:productId/archive', freeProductsController.unpublishProduct);
