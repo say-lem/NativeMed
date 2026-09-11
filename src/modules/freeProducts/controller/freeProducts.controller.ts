@@ -5,6 +5,7 @@ import { AuthRequest } from '../../../shared/types';
 import {
   CreateLinkFreeProductInput,
   UploadPdfFreeProductInput,
+  UploadBlogFreeProductInput,
   UpdateFreeProductInput,
 } from '../schema/freeProducts.schema';
 import * as freeProductsService from '../service/freeProducts.service';
@@ -43,6 +44,19 @@ export const uploadPdfProduct = asyncHandler(async (req: AuthRequest, res: Respo
   const input = req.body as UploadPdfFreeProductInput;
   const product = await freeProductsService.uploadPdfProduct(input, req.file, req.user!._id);
   return ApiResponse.created(res, 'Free product created', product);
+});
+
+export const uploadBlogProduct = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.file) return ApiResponse.error(res, 'No cover image uploaded', 400);
+  const input = req.body as UploadBlogFreeProductInput;
+  const product = await freeProductsService.uploadBlogProduct(input, req.file, req.user!._id);
+  return ApiResponse.created(res, 'Free product created', product);
+});
+
+export const replaceCoverImage = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) return ApiResponse.error(res, 'No cover image uploaded', 400);
+  const product = await freeProductsService.replaceBlogCoverImage(getSingleParam(req.params.productId), req.file);
+  return ApiResponse.success(res, 'Cover image updated', product);
 });
 
 export const getAllProducts = asyncHandler(async (req: Request, res: Response) => {
