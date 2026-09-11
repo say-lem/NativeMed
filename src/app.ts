@@ -22,6 +22,8 @@ import reviewsRoutes from './modules/reviews/routes/reviews.route';
 import reviewsAdminRoutes from './modules/reviews/routes/admin.routes';
 import activitiesRoutes from './modules/activities/routes/activities.route';
 import activitiesAdminRoutes from './modules/activities/routes/admin.routes';
+import homepageRoutes from './modules/homepage/routes/homepage.route';
+import homepageAdminRoutes from './modules/homepage/routes/admin.routes';
 
 const app = express();
 
@@ -90,6 +92,8 @@ app.use(`${API}/reviews`, generalLimiter, reviewsRoutes);
 app.use(`${API}/admin/reviews`, adminLimiter, reviewsAdminRoutes);
 app.use(`${API}/activities`, generalLimiter, activitiesRoutes);
 app.use(`${API}/admin/activities`, adminLimiter, activitiesAdminRoutes);
+app.use(`${API}/homepage`, generalLimiter, homepageRoutes);
+app.use(`${API}/admin/homepage`, adminLimiter, homepageAdminRoutes);
 
 // ── 404 handler 
 app.use((_req, res) => {
