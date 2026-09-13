@@ -5,6 +5,8 @@ import {
   UpdateHomepageStatsInput,
   CreateYoutubeLinkInput,
   UpdateYoutubeLinkInput,
+  UpdateTermsAndConditionsInput,
+  UpdateLegalDisclaimerInput,
 } from '../schema/homepage.schema';
 import * as homepageService from '../service/homepage.service';
 
@@ -18,6 +20,16 @@ const getSingleParam = (value: string | string[] | undefined): string =>
 export const getHomepageData = asyncHandler(async (_req: Request, res: Response) => {
   const data = await homepageService.getHomepageData();
   return ApiResponse.success(res, 'Homepage data fetched', data);
+});
+
+export const getTermsAndConditions = asyncHandler(async (_req: Request, res: Response) => {
+  const data = await homepageService.getTermsAndConditions();
+  return ApiResponse.success(res, 'Terms and conditions fetched', data);
+});
+
+export const getLegalDisclaimer = asyncHandler(async (_req: Request, res: Response) => {
+  const data = await homepageService.getLegalDisclaimer();
+  return ApiResponse.success(res, 'Legal disclaimer fetched', data);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -45,4 +57,16 @@ export const updateYoutubeLink = asyncHandler(async (req: Request, res: Response
 export const deleteYoutubeLink = asyncHandler(async (req: Request, res: Response) => {
   const settings = await homepageService.deleteYoutubeLink(getSingleParam(req.params.linkId));
   return ApiResponse.success(res, 'YouTube link deleted', settings);
+});
+
+export const updateTermsAndConditions = asyncHandler(async (req: Request, res: Response) => {
+  const input = req.body as UpdateTermsAndConditionsInput;
+  const data = await homepageService.updateTermsAndConditions(input);
+  return ApiResponse.success(res, 'Terms and conditions updated', data);
+});
+
+export const updateLegalDisclaimer = asyncHandler(async (req: Request, res: Response) => {
+  const input = req.body as UpdateLegalDisclaimerInput;
+  const data = await homepageService.updateLegalDisclaimer(input);
+  return ApiResponse.success(res, 'Legal disclaimer updated', data);
 });

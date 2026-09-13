@@ -110,9 +110,7 @@ export const register = async (input: RegisterInput) => {
     fullName: input.fullName,
     email: input.email,
     passwordHash: input.password,
-    phone: input.phone,
     whatsappNumber: input.whatsappNumber,
-    telegramUsername: input.telegramUsername,
     examSitting: input.examSitting,
     role: 'user', // hardcoded — cannot self-register as admin
   });

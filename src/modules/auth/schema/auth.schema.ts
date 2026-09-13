@@ -24,13 +24,7 @@ export const registerSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters').trim(),
   email: z.string().email('Invalid email address').toLowerCase().trim(),
   password: passwordField,
-  phone: z.string().min(7, 'Invalid phone number').trim(),
   whatsappNumber: z.string().trim().optional(),
-  telegramUsername: z
-    .string()
-    .min(1, 'Telegram username is required')
-    .trim()
-    .transform((v) => (v.startsWith('@') ? v : `@${v}`)),
   examSitting: examSittingField,
 });
 

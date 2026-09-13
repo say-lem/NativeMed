@@ -9,7 +9,9 @@ export interface IUser extends Document {
   fullName: string;
   email: string;
   passwordHash: string;
-  phone: string;
+  // No longer collected at registration (see registerSchema) — kept optional
+  // for admin-created accounts and later profile completion.
+  phone?: string;
   whatsappNumber?: string;
   telegramUsername?: string;
   // Month/year the user intends to sit the exam, stored as MM/YY
@@ -35,7 +37,7 @@ const userSchema = new Schema<IUser>(
       trim: true,
     },
     passwordHash: { type: String, required: true, select: false },
-    phone: { type: String, required: true, trim: true },
+    phone: { type: String, trim: true },
     whatsappNumber: { type: String, trim: true },
     telegramUsername: { type: String, trim: true },
     examSitting: {

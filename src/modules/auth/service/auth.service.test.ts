@@ -23,9 +23,7 @@ const registerInput = {
   fullName: 'Grace Hopper',
   email: 'grace@example.com',
   password: 'Password1!',
-  phone: '07000000001',
   whatsappNumber: undefined,
-  telegramUsername: '@grace',
   examSitting: '03/26',
 };
 
@@ -44,6 +42,14 @@ describe('auth.service', () => {
       expect(result.accessToken).toEqual(expect.any(String));
       expect(result.refreshToken).toEqual(expect.any(String));
       expect((result.user as unknown as { passwordHash?: string }).passwordHash).toBeUndefined();
+    });
+
+    it('no longer collects phone or telegramUsername at registration', async () => {
+      await authService.register(registerInput);
+
+      const stored = await User.findOne({ email: registerInput.email });
+      expect(stored?.phone).toBeUndefined();
+      expect(stored?.telegramUsername).toBeUndefined();
     });
 
     it('rejects a duplicate email', async () => {
