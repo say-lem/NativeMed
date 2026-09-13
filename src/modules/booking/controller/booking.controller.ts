@@ -39,6 +39,13 @@ export const bookSession = asyncHandler(async (req: AuthRequest, res: Response) 
   return ApiResponse.created(res, 'Session booked', booking);
 });
 
+export const getMyBookings = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 20;
+  const result = await bookingService.getMyBookings(req.user!._id, page, limit);
+  return ApiResponse.success(res, 'Bookings fetched', result);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Admin
 // ─────────────────────────────────────────────────────────────────────────────

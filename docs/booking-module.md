@@ -20,6 +20,7 @@ Multiple distinct session products can exist side by side (e.g. a 30-minute cons
 ## Booking a session (authenticated user)
 
 - `POST /api/v1/booking/:productId/book` — body: `{ date, time }`. `time` must be one of the product's `availableTimes`; `date` must be a date currently in the product's unbooked pool. On success, creates a `SessionBooking` record and emails the admin (`CONTACT_EMAIL_TO`, falling back to `EMAIL_FROM_ADDRESS`) with the session, date/time, and the booker's name/email. The email send is fire-and-forget — a failure there never fails the booking.
+- `GET /api/v1/booking/me` — paginated list of the logged-in user's own bookings, newest date first, with `productId` populated (`title`/`description`/`price`).
 
 ## Admin — products
 

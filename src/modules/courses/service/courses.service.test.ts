@@ -143,6 +143,26 @@ describe('courses.service', () => {
     });
   });
 
+  describe('setCoursePaymentsPaused', () => {
+    it('pauses and resumes payments without touching isPublished', async () => {
+      const adminId = objectId();
+      const created = await Course.create({ ...validCreateInput, createdBy: adminId, isPublished: true });
+
+      const paused = await coursesService.setCoursePaymentsPaused(created._id.toString(), true);
+      expect(paused.paymentsPaused).toBe(true);
+      expect(paused.isPublished).toBe(true);
+
+      const resumed = await coursesService.setCoursePaymentsPaused(created._id.toString(), false);
+      expect(resumed.paymentsPaused).toBe(false);
+    });
+
+    it('throws 404 for a missing course', async () => {
+      await expect(
+        coursesService.setCoursePaymentsPaused(new Types.ObjectId().toString(), true),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    });
+  });
+
   describe('public reads', () => {
     it('getAllPublished only returns published courses', async () => {
       const adminId = objectId();
@@ -151,6 +171,15 @@ describe('courses.service', () => {
 
       const published = await coursesService.getAllPublished();
       expect(published).toHaveLength(1);
+    });
+
+    it('a course with payments paused remains visible in the public list', async () => {
+      const adminId = objectId();
+      await Course.create({ ...validCreateInput, createdBy: adminId, isPublished: true, paymentsPaused: true });
+
+      const published = await coursesService.getAllPublished();
+      expect(published).toHaveLength(1);
+      expect((published[0] as unknown as { paymentsPaused: boolean }).paymentsPaused).toBe(true);
     });
 
     it('getCourseById 404s for an unpublished course', async () => {

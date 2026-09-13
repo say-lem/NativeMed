@@ -25,6 +25,9 @@ export interface ICourse extends Document {
   telegramChannel?: string | null;    // community invite link, sent to enrollees
   whatsappChannel?: string | null;    // community invite link, sent to enrollees
   isPublished: boolean;
+  // Blocks new checkouts/plan changes without touching visibility or isPublished —
+  // the course stays listed, existing subscriptions are untouched (see payments.service.ts).
+  paymentsPaused: boolean;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -53,6 +56,7 @@ const courseSchema = new Schema<ICourse>(
     telegramChannel: { type: String, trim: true, default: null },
     whatsappChannel: { type: String, trim: true, default: null },
     isPublished: { type: Boolean, default: false },
+    paymentsPaused: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },

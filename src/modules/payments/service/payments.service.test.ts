@@ -88,6 +88,22 @@ describe('payments.service', () => {
       ).rejects.toMatchObject({ statusCode: 400 });
     });
 
+    it('rejects checkout for a course with payments paused, even though it is published', async () => {
+      const admin = await createTestUser({ role: 'admin' });
+      const course = await createTestCourse(admin._id, { isPublished: true, paymentsPaused: true });
+
+      await expect(
+        paymentsService.createCheckoutSession({
+          userId: objectId(),
+          email: 'buyer@example.com',
+          type: 'course',
+          tier: 'mocksessions_only',
+          interval: 'monthly',
+          courseId: course._id.toString(),
+        }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
+
     it('rejects when the requested tier/interval has no price set', async () => {
       const admin = await createTestUser({ role: 'admin' });
       const course = await createTestCourse(admin._id, {
