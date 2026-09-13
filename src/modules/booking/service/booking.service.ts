@@ -139,6 +139,19 @@ export const getPublishedBookingProductById = async (productId: string) => {
   return withOnlyAvailableDates(product);
 };
 
+export const getMyBookings = async (userId: Types.ObjectId, page = 1, limit = 20) => {
+  const filter = { userId };
+  const [items, total] = await Promise.all([
+    SessionBooking.find(filter)
+      .populate('productId', 'title description price')
+      .sort({ date: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+    SessionBooking.countDocuments(filter),
+  ]);
+  return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // User — book a session
 //

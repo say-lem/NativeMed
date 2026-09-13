@@ -63,6 +63,10 @@ router.patch(
 );
 
 router.patch('/:id/publish', authenticate, authorize('admin'), coursesController.togglePublish);
+
+// Pause/resume new payments without touching visibility — course stays listed
+router.patch('/:id/pause-payments', authenticate, authorize('admin'), coursesController.pausePayments);
+router.patch('/:id/resume-payments', authenticate, authorize('admin'), coursesController.resumePayments);
 router.delete('/:id', authenticate, authorize('admin'), coursesController.deleteCourse);
 
 export default router;

@@ -177,6 +177,19 @@ export const togglePublish = async (courseId: string) => {
 };
 
 /**
+ * Pause/resume payments independently of visibility — the course stays
+ * listed and viewable (isPublished untouched), but new checkouts and plan
+ * changes are rejected while paused (see payments.service.ts). Existing
+ * subscriptions/enrollments are untouched; this only blocks new charges.
+ */
+export const setCoursePaymentsPaused = async (courseId: string, paymentsPaused: boolean) => {
+  const course = await Course.findById(courseId);
+  if (!course) throw new AppError('Course not found', 404);
+  course.paymentsPaused = paymentsPaused;
+  return course.save();
+};
+
+/**
  * Admin list — includes unpublished courses.
  */
 export const getAllCoursesAdmin = async (params: CourseFilterInput) => {
@@ -224,7 +237,7 @@ export const getCourseByIdAdmin = async (courseId: string) => {
 
 /** Public course fields returned from list/detail endpoints (prices in GBP). */
 const publicCourseFields =
-  'title description pricing thumbnailUrl telegramChannel whatsappChannel isPublished createdAt updatedAt';
+  'title description pricing thumbnailUrl telegramChannel whatsappChannel isPublished paymentsPaused createdAt updatedAt';
 
 export const getAllPublished = async () => {
   return Course.find({ isPublished: true })

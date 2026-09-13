@@ -57,10 +57,11 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
     if (!tier) throw new AppError('tier is required for course subscriptions', 400);
 
     const course = await Course.findById(courseId).select(
-      'title pricing isPublished',
+      'title pricing isPublished paymentsPaused',
     );
     if (!course) throw new AppError('Course not found', 404);
     if (!course.isPublished) throw new AppError('This course is not available for purchase', 400);
+    if (course.paymentsPaused) throw new AppError('Payments are currently paused for this course', 400);
 
     const priceGbp = course.pricing?.[tier]?.[interval];
     if (priceGbp == null) {
@@ -143,8 +144,9 @@ export const changeCoursePlan = async (input: ChangeCoursePlanInput) => {
     throw new AppError('No change requested', 400);
   }
 
-  const course = await Course.findById(courseId).select('title pricing isPublished');
+  const course = await Course.findById(courseId).select('title pricing isPublished paymentsPaused');
   if (!course) throw new AppError('Course not found', 404);
+  if (course.paymentsPaused) throw new AppError('Payments are currently paused for this course', 400);
 
   const priceGbp = course.pricing?.[targetTier]?.[targetInterval];
   if (priceGbp == null) {
