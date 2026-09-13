@@ -8,6 +8,10 @@ const router = Router();
 
 // Open — published booking products, with only still-available dates shown
 router.get('/', bookingController.getPublishedBookingProducts);
+
+// Static path before /:productId — a logged-in user's own bookings
+router.get('/me', authenticate, bookingController.getMyBookings);
+
 router.get('/:productId', bookingController.getPublishedBookingProductById);
 
 // Booking a session requires a logged-in user — the admin needs to know who booked

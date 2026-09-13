@@ -57,6 +57,16 @@ export const togglePublish = asyncHandler(async (req: Request, res: Response) =>
   );
 });
 
+export const pausePayments = asyncHandler(async (req: Request, res: Response) => {
+  const course = await coursesService.setCoursePaymentsPaused(getSingleParam(req.params.id), true);
+  return ApiResponse.success(res, 'Payments paused for this course', course);
+});
+
+export const resumePayments = asyncHandler(async (req: Request, res: Response) => {
+  const course = await coursesService.setCoursePaymentsPaused(getSingleParam(req.params.id), false);
+  return ApiResponse.success(res, 'Payments resumed for this course', course);
+});
+
 export const uploadThumbnail = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) {
     return ApiResponse.error(res, 'No image file uploaded', 400);

@@ -221,4 +221,54 @@ describe('booking.service', () => {
       expect(result.total).toBe(1);
     });
   });
+
+  describe('getMyBookings', () => {
+    it('only returns bookings belonging to the given user', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-06') });
+      const user1 = await createTestUser();
+      const user2 = await createTestUser();
+      await bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user1._id);
+      await bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-06'), time: '10:00' }, user2._id);
+
+      const result = await bookingService.getMyBookings(user1._id);
+
+      expect(result.total).toBe(1);
+      expect(result.items[0].userId.toString()).toBe(user1._id.toString());
+    });
+
+    it('populates product title/description/price', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+      await bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user._id);
+
+      const result = await bookingService.getMyBookings(user._id);
+
+      expect(result.items[0].productId).toMatchObject({ title: baseProductInput.title, price: baseProductInput.price });
+    });
+
+    it('returns an empty list for a user with no bookings', async () => {
+      const result = await bookingService.getMyBookings(objectId());
+      expect(result.total).toBe(0);
+      expect(result.items).toHaveLength(0);
+    });
+
+    it('paginates results', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      const user = await createTestUser();
+      for (const day of ['2026-03-01', '2026-03-02', '2026-03-03']) {
+        await bookingService.addAvailableDate(product._id.toString(), { date: new Date(day) });
+        await bookingService.bookSession(product._id.toString(), { date: new Date(day), time: '10:00' }, user._id);
+      }
+
+      const page1 = await bookingService.getMyBookings(user._id, 1, 2);
+      const page2 = await bookingService.getMyBookings(user._id, 2, 2);
+
+      expect(page1.items).toHaveLength(2);
+      expect(page2.items).toHaveLength(1);
+      expect(page1.totalPages).toBe(2);
+    });
+  });
 });
