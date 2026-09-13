@@ -6,6 +6,8 @@ import {
   updateHomepageStatsSchema,
   createYoutubeLinkSchema,
   updateYoutubeLinkSchema,
+  updateTermsAndConditionsSchema,
+  updateLegalDisclaimerSchema,
 } from '../schema/homepage.schema';
 import * as homepageController from '../controller/homepage.controller';
 
@@ -19,5 +21,13 @@ router.patch('/', validate(updateHomepageStatsSchema), homepageController.update
 router.post('/youtube-links', validate(createYoutubeLinkSchema), homepageController.addYoutubeLink);
 router.patch('/youtube-links/:linkId', validate(updateYoutubeLinkSchema), homepageController.updateYoutubeLink);
 router.delete('/youtube-links/:linkId', homepageController.deleteYoutubeLink);
+
+// Terms and conditions — own endpoint. First PATCH creates it, later ones edit in place.
+router.get('/terms', homepageController.getTermsAndConditions);
+router.patch('/terms', validate(updateTermsAndConditionsSchema), homepageController.updateTermsAndConditions);
+
+// Legal disclaimer — own endpoint, same create-on-first-PATCH pattern as terms.
+router.get('/legal-disclaimer', homepageController.getLegalDisclaimer);
+router.patch('/legal-disclaimer', validate(updateLegalDisclaimerSchema), homepageController.updateLegalDisclaimer);
 
 export default router;

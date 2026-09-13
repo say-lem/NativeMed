@@ -7,4 +7,8 @@ const router = Router();
 // youtubeLinks for the public homepage.
 router.get('/', homepageController.getHomepageData);
 
+// Own endpoint, separate from the general homepage feed above.
+router.get('/terms', homepageController.getTermsAndConditions);
+router.get('/legal-disclaimer', homepageController.getLegalDisclaimer);
+
 export default router;
