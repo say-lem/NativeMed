@@ -25,8 +25,30 @@ export const uploadPdf = multer({
   limits: { fileSize: MAX_PDF_MB * 1024 * 1024, files: 1 },
 });
 
+const IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_IMAGE_MB = 5;
+
+const imageFileFilter = (
+  _req: Request,
+  file: Express.Multer.File,
+  cb: FileFilterCallback,
+) => {
+  if (IMAGE_MIME.has(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`Unsupported image type "${file.mimetype}". Allowed formats: jpg, png, webp`));
+  }
+};
+
+// Blog cover image — memory storage, streamed to Cloudinary by the service layer
+export const uploadCoverImage = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: imageFileFilter,
+  limits: { fileSize: MAX_IMAGE_MB * 1024 * 1024, files: 1 },
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Rate limiter — 20 PDF uploads per hour per IP
+// Rate limiter — 20 uploads (PDF or blog cover) per hour per IP
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const uploadRateLimiter = createLeakyBucketLimiter({

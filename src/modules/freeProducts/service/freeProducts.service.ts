@@ -5,6 +5,7 @@ import { FreeProduct } from '../model/freeProducts.model';
 import {
   CreateLinkFreeProductInput,
   UploadPdfFreeProductInput,
+  UploadBlogFreeProductInput,
   UpdateFreeProductInput,
 } from '../schema/freeProducts.schema';
 
@@ -18,6 +19,7 @@ export const createLinkProduct = async (
     description: input.description,
     type: 'link',
     fileUrl: input.fileUrl,
+    order: input.order,
     createdBy,
   });
 };
@@ -48,6 +50,67 @@ export const uploadPdfProduct = async (
   });
 };
 
+// Blog — the expected common case: a cover image plus written content,
+// rather than a pointer to material hosted elsewhere.
+export const uploadBlogProduct = async (
+  input: UploadBlogFreeProductInput,
+  file: Express.Multer.File,
+  createdBy: Types.ObjectId,
+) => {
+  const result = await uploadBuffer(file.buffer, {
+    folder:          CloudinaryFolders.FREE_PRODUCT_COVERS,
+    resource_type:   'image',
+    use_filename:    false,
+    unique_filename: true,
+    overwrite:       false,
+    // Consistent 16:9 cover, same treatment as course thumbnails
+    transformation:  [{ width: 800, height: 450, crop: 'fill', gravity: 'auto' }],
+  });
+
+  return FreeProduct.create({
+    title: input.title,
+    description: input.description,
+    type: 'blog',
+    content: input.content,
+    coverImageUrl: result.secure_url,
+    coverImagePublicId: result.public_id,
+    order: input.order,
+    createdBy,
+  });
+};
+
+// Replace the cover image on an existing blog product — destroy-then-upload,
+// same ordering rationale as Course.updateCourseThumbnail: if the new upload
+// fails, the old image is already gone but no bad data has been written.
+export const replaceBlogCoverImage = async (productId: string, file: Express.Multer.File) => {
+  const product = await FreeProduct.findById(productId).select('+coverImagePublicId');
+  if (!product) throw new AppError('Product not found', 404);
+  if (product.type !== 'blog') throw new AppError('Only blog products have a cover image', 400);
+
+  if (product.coverImagePublicId) {
+    try {
+      await cloudinary.uploader.destroy(product.coverImagePublicId, { resource_type: 'image' });
+    } catch (err) {
+      console.error(`⚠️  Could not delete old cover image (${product.coverImagePublicId}):`, err);
+    }
+  }
+
+  const result = await uploadBuffer(file.buffer, {
+    folder:          CloudinaryFolders.FREE_PRODUCT_COVERS,
+    resource_type:   'image',
+    use_filename:    false,
+    unique_filename: true,
+    overwrite:       false,
+    transformation:  [{ width: 800, height: 450, crop: 'fill', gravity: 'auto' }],
+  });
+
+  product.coverImageUrl = result.secure_url;
+  product.coverImagePublicId = result.public_id;
+  await product.save();
+
+  return product;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PDF delivery
 //
@@ -56,7 +119,8 @@ export const uploadPdfProduct = async (
 // The Admin API's private_download_url is the one thing that works, but its
 // signed links are short-lived, so they're generated fresh on every read —
 // never stored/cached — even though these products are publicly accessible
-// with no auth on our side.
+// with no auth on our side. Cover images have no such restriction — a plain
+// `image` upload is delivered directly via its stored secure_url.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const getPdfDeliveryUrl = (publicId: string): string =>
@@ -118,6 +182,9 @@ export const updateProduct = async (productId: string, input: UpdateFreeProductI
   if (input.fileUrl && product.type !== 'link') {
     throw new AppError('fileUrl can only be edited on link products — delete and re-upload the PDF instead', 400);
   }
+  if (input.content !== undefined && product.type !== 'blog') {
+    throw new AppError('content can only be edited on blog products', 400);
+  }
 
   Object.assign(product, input);
   await product.save();
@@ -130,7 +197,7 @@ export const setProductPublished = async (productId: string, isPublished: boolea
 };
 
 export const deleteProduct = async (productId: string): Promise<void> => {
-  const product = await FreeProduct.findById(productId).select('+publicId');
+  const product = await FreeProduct.findById(productId).select('+publicId +coverImagePublicId');
   if (!product) throw new AppError('Product not found', 404);
 
   if (product.type === 'pdf' && product.publicId) {
@@ -138,6 +205,9 @@ export const deleteProduct = async (productId: string): Promise<void> => {
       resource_type: 'raw',
       type: 'authenticated',
     });
+  }
+  if (product.type === 'blog' && product.coverImagePublicId) {
+    await cloudinary.uploader.destroy(product.coverImagePublicId, { resource_type: 'image' });
   }
 
   await product.deleteOne();

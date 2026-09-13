@@ -10,6 +10,8 @@ export const updateHomepageStatsSchema = z
   .object({
     testimonialsCount: z.number().int().min(0, 'testimonialsCount cannot be negative').optional(),
     registrarsCount: z.number().int().min(0, 'registrarsCount cannot be negative').optional(),
+    contactEmail: z.string().trim().email('Must be a valid email').optional(),
+    contactPhone: z.string().trim().min(7, 'Invalid phone number').max(20).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
 
@@ -32,3 +34,15 @@ export const updateYoutubeLinkSchema = z
   .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
 
 export type UpdateYoutubeLinkInput = z.infer<typeof updateYoutubeLinkSchema>;
+
+export const updateTermsAndConditionsSchema = z.object({
+  content: z.string().trim().min(1, 'Content is required').max(20000),
+});
+
+export type UpdateTermsAndConditionsInput = z.infer<typeof updateTermsAndConditionsSchema>;
+
+export const updateLegalDisclaimerSchema = z.object({
+  content: z.string().trim().min(1, 'Content is required').max(20000),
+});
+
+export type UpdateLegalDisclaimerInput = z.infer<typeof updateLegalDisclaimerSchema>;

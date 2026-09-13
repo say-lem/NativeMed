@@ -43,6 +43,8 @@ describe('homepage.service', () => {
       expect(data.caseNumber).toBe(0);
       expect(data.testimonialsCount).toBe(0);
       expect(data.registrarsCount).toBe(0);
+      expect(data.contactEmail).toBeNull();
+      expect(data.contactPhone).toBeNull();
       expect(data.youtubeLinks).toEqual([]);
     });
 
@@ -61,6 +63,14 @@ describe('homepage.service', () => {
       const data = await homepageService.getHomepageData();
       expect(data.testimonialsCount).toBe(42);
       expect(data.registrarsCount).toBe(100);
+    });
+
+    it('reflects admin-entered contact email/phone', async () => {
+      await homepageService.updateHomepageStats({ contactEmail: 'Admin@Example.com', contactPhone: '+1 555 000 1111' });
+
+      const data = await homepageService.getHomepageData();
+      expect(data.contactEmail).toBe('admin@example.com');
+      expect(data.contactPhone).toBe('+1 555 000 1111');
     });
 
     it('returns youtube links sorted by order', async () => {
@@ -94,6 +104,16 @@ describe('homepage.service', () => {
 
       expect(updated.testimonialsCount).toBe(7);
       expect(updated.registrarsCount).toBe(10);
+    });
+
+    it('sets contact email and phone', async () => {
+      const updated = await homepageService.updateHomepageStats({
+        contactEmail: 'contact@nativemed.com',
+        contactPhone: '+44 20 7946 0958',
+      });
+
+      expect(updated.contactEmail).toBe('contact@nativemed.com');
+      expect(updated.contactPhone).toBe('+44 20 7946 0958');
     });
   });
 
@@ -136,6 +156,100 @@ describe('homepage.service', () => {
       await expect(
         homepageService.deleteYoutubeLink(new Types.ObjectId().toString()),
       ).rejects.toMatchObject({ statusCode: 404 });
+    });
+  });
+
+  describe('terms and conditions', () => {
+    it('returns empty content and no updatedAt before anything is set', async () => {
+      const data = await homepageService.getTermsAndConditions();
+      expect(data.content).toBe('');
+      expect(data.updatedAt).toBeNull();
+    });
+
+    it('creates the singleton on first update (no separate create step)', async () => {
+      expect(await HomepageSettings.countDocuments()).toBe(0);
+
+      const updated = await homepageService.updateTermsAndConditions({ content: 'Initial terms' });
+
+      expect(await HomepageSettings.countDocuments()).toBe(1);
+      expect(updated.content).toBe('Initial terms');
+      expect(updated.updatedAt).toBeInstanceOf(Date);
+    });
+
+    it('edits the content in place without creating a second document', async () => {
+      await homepageService.updateTermsAndConditions({ content: 'v1' });
+      const updated = await homepageService.updateTermsAndConditions({ content: 'v2' });
+
+      expect(await HomepageSettings.countDocuments()).toBe(1);
+      expect(updated.content).toBe('v2');
+    });
+
+    it('is reflected by getTermsAndConditions after an update', async () => {
+      await homepageService.updateTermsAndConditions({ content: 'Latest terms' });
+
+      const data = await homepageService.getTermsAndConditions();
+      expect(data.content).toBe('Latest terms');
+      expect(data.updatedAt).toBeInstanceOf(Date);
+    });
+
+    it('does not affect other homepage fields', async () => {
+      await homepageService.updateHomepageStats({ testimonialsCount: 5 });
+      await homepageService.updateTermsAndConditions({ content: 'Terms' });
+
+      const data = await homepageService.getHomepageData();
+      expect(data.testimonialsCount).toBe(5);
+    });
+  });
+
+  describe('legal disclaimer', () => {
+    it('returns empty content and no updatedAt before anything is set', async () => {
+      const data = await homepageService.getLegalDisclaimer();
+      expect(data.content).toBe('');
+      expect(data.updatedAt).toBeNull();
+    });
+
+    it('creates the singleton on first update (no separate create step)', async () => {
+      expect(await HomepageSettings.countDocuments()).toBe(0);
+
+      const updated = await homepageService.updateLegalDisclaimer({ content: 'Initial disclaimer' });
+
+      expect(await HomepageSettings.countDocuments()).toBe(1);
+      expect(updated.content).toBe('Initial disclaimer');
+      expect(updated.updatedAt).toBeInstanceOf(Date);
+    });
+
+    it('edits the content in place without creating a second document', async () => {
+      await homepageService.updateLegalDisclaimer({ content: 'v1' });
+      const updated = await homepageService.updateLegalDisclaimer({ content: 'v2' });
+
+      expect(await HomepageSettings.countDocuments()).toBe(1);
+      expect(updated.content).toBe('v2');
+    });
+
+    it('is reflected by getLegalDisclaimer after an update', async () => {
+      await homepageService.updateLegalDisclaimer({ content: 'Latest disclaimer' });
+
+      const data = await homepageService.getLegalDisclaimer();
+      expect(data.content).toBe('Latest disclaimer');
+      expect(data.updatedAt).toBeInstanceOf(Date);
+    });
+
+    it('is independent of terms and conditions', async () => {
+      await homepageService.updateTermsAndConditions({ content: 'Terms' });
+      await homepageService.updateLegalDisclaimer({ content: 'Disclaimer' });
+
+      const terms = await homepageService.getTermsAndConditions();
+      const disclaimer = await homepageService.getLegalDisclaimer();
+      expect(terms.content).toBe('Terms');
+      expect(disclaimer.content).toBe('Disclaimer');
+    });
+
+    it('does not affect other homepage fields', async () => {
+      await homepageService.updateHomepageStats({ testimonialsCount: 5 });
+      await homepageService.updateLegalDisclaimer({ content: 'Disclaimer' });
+
+      const data = await homepageService.getHomepageData();
+      expect(data.testimonialsCount).toBe(5);
     });
   });
 });

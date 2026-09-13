@@ -11,11 +11,13 @@ Returns:
 - `caseNumber`: live count of published cases (`MockCase` with `isPublished: true`). Never stored — always computed fresh so it can't drift from `/cases`.
 - `testimonialsCount`: admin-entered number.
 - `registrarsCount`: admin-entered number.
+- `contactEmail`: admin-entered contact email, or `null` if not set.
+- `contactPhone`: admin-entered contact phone, or `null` if not set.
 - `youtubeLinks`: admin-managed list of `{ _id, title, url, order }`, sorted by `order`.
 
 ## PATCH `/api/v1/admin/homepage`
 
-Body (camelCase, at least one field): `testimonialsCount`, `registrarsCount` — both non-negative integers. `caseNumber` cannot be set here; it's always derived from published cases.
+Body (camelCase, at least one field): `testimonialsCount`, `registrarsCount` — both non-negative integers; `contactEmail` (valid email, stored lowercased); `contactPhone` (7–20 characters, no format enforced beyond length). `caseNumber` cannot be set here; it's always derived from published cases.
 
 ## YouTube links
 
@@ -24,3 +26,19 @@ Body (camelCase, at least one field): `testimonialsCount`, `registrarsCount` —
 - `DELETE /api/v1/admin/homepage/youtube-links/:linkId` — removes the link.
 
 All three return the full updated settings document.
+
+## Terms and conditions
+
+Own endpoint, separate from the general homepage feed/stats above, backed by the same singleton document.
+
+- `GET /api/v1/homepage/terms` (public) — `{ content, updatedAt }`. `content` is `''` and `updatedAt` is `null` until an admin sets it.
+- `GET /api/v1/admin/homepage/terms` — same shape, for the admin editor to load current content.
+- `PATCH /api/v1/admin/homepage/terms` — body: `{ content }` (required, non-empty). The first call creates it, every later call edits it in place — there's no separate create step. `updatedAt` is stamped on every save.
+
+## Legal disclaimer
+
+Same pattern and singleton as terms and conditions above, but its own field/endpoint — editing one never touches the other.
+
+- `GET /api/v1/homepage/legal-disclaimer` (public) — `{ content, updatedAt }`. `content` is `''` and `updatedAt` is `null` until an admin sets it.
+- `GET /api/v1/admin/homepage/legal-disclaimer` — same shape, for the admin editor to load current content.
+- `PATCH /api/v1/admin/homepage/legal-disclaimer` — body: `{ content }` (required, non-empty). First call creates it, later calls edit in place.

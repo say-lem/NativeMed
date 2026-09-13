@@ -5,6 +5,8 @@ import {
   UpdateHomepageStatsInput,
   CreateYoutubeLinkInput,
   UpdateYoutubeLinkInput,
+  UpdateTermsAndConditionsInput,
+  UpdateLegalDisclaimerInput,
 } from '../schema/homepage.schema';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,6 +37,8 @@ export const getHomepageData = async () => {
     caseNumber,
     testimonialsCount: settings.testimonialsCount,
     registrarsCount: settings.registrarsCount,
+    contactEmail: settings.contactEmail ?? null,
+    contactPhone: settings.contactPhone ?? null,
     youtubeLinks: [...settings.youtubeLinks].sort((a, b) => a.order - b.order),
   };
 };
@@ -83,4 +87,60 @@ export const deleteYoutubeLink = async (linkId: string) => {
   await settings.save();
 
   return settings;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Terms and conditions — own endpoint, same singleton document underneath.
+// The first PATCH creates it, every later PATCH edits it in place — there's
+// no separate "create" step to keep in sync with "edit".
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const getTermsAndConditions = async () => {
+  const settings = await getOrCreateSettings();
+  return {
+    content: settings.termsAndConditions,
+    updatedAt: settings.termsAndConditionsUpdatedAt ?? null,
+  };
+};
+
+export const updateTermsAndConditions = async (input: UpdateTermsAndConditionsInput) => {
+  const settings = await HomepageSettings.findOneAndUpdate(
+    {},
+    {
+      $set: { termsAndConditions: input.content, termsAndConditionsUpdatedAt: new Date() },
+      $setOnInsert: {},
+    },
+    { returnDocument: 'after', upsert: true },
+  );
+  return {
+    content: settings!.termsAndConditions,
+    updatedAt: settings!.termsAndConditionsUpdatedAt ?? null,
+  };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legal disclaimer — own endpoint, same pattern/singleton as terms above.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const getLegalDisclaimer = async () => {
+  const settings = await getOrCreateSettings();
+  return {
+    content: settings.legalDisclaimer,
+    updatedAt: settings.legalDisclaimerUpdatedAt ?? null,
+  };
+};
+
+export const updateLegalDisclaimer = async (input: UpdateLegalDisclaimerInput) => {
+  const settings = await HomepageSettings.findOneAndUpdate(
+    {},
+    {
+      $set: { legalDisclaimer: input.content, legalDisclaimerUpdatedAt: new Date() },
+      $setOnInsert: {},
+    },
+    { returnDocument: 'after', upsert: true },
+  );
+  return {
+    content: settings!.legalDisclaimer,
+    updatedAt: settings!.legalDisclaimerUpdatedAt ?? null,
+  };
 };

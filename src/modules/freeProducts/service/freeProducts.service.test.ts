@@ -46,6 +46,66 @@ describe('freeProducts.service', () => {
     });
   });
 
+  describe('uploadBlogProduct', () => {
+    it('uploads a cover image and stores the blog content', async () => {
+      const file = { buffer: Buffer.from('img') } as Express.Multer.File;
+
+      const product = await freeProductsService.uploadBlogProduct(
+        { title: 'A Free Blog', content: 'A' + 'x'.repeat(25), order: 0 },
+        file,
+        objectId(),
+      );
+
+      expect(product.type).toBe('blog');
+      expect(product.coverImageUrl).toBe('https://cdn.example.com/mock-upload');
+      expect(product.content).toContain('xxxxx');
+      expect(product.description).toBeUndefined();
+      expect(uploadBuffer).toHaveBeenCalledWith(
+        file.buffer,
+        expect.objectContaining({ resource_type: 'image' }),
+      );
+    });
+  });
+
+  describe('replaceBlogCoverImage', () => {
+    it('destroys the old cover image and stores the new one', async () => {
+      const product = await freeProductsService.uploadBlogProduct(
+        { title: 'A Free Blog', content: 'A' + 'x'.repeat(25), order: 0 },
+        { buffer: Buffer.from('img') } as Express.Multer.File,
+        objectId(),
+      );
+      cloudinaryMock.uploader.destroy.mockClear();
+      uploadBuffer.mockResolvedValueOnce({
+        secure_url: 'https://cdn.example.com/new-upload',
+        public_id: 'new_public_id',
+      });
+
+      const updated = await freeProductsService.replaceBlogCoverImage(
+        product._id.toString(),
+        { buffer: Buffer.from('img2') } as Express.Multer.File,
+      );
+
+      expect(updated.coverImageUrl).toBe('https://cdn.example.com/new-upload');
+      expect(cloudinaryMock.uploader.destroy).toHaveBeenCalledWith('mock_public_id', { resource_type: 'image' });
+    });
+
+    it('rejects replacing the cover image on a non-blog product', async () => {
+      const product = await FreeProduct.create({
+        title: 'Link', type: 'link', fileUrl: 'https://a.com', description: 'x', createdBy: objectId(),
+      });
+
+      await expect(
+        freeProductsService.replaceBlogCoverImage(product._id.toString(), { buffer: Buffer.from('img') } as Express.Multer.File),
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
+
+    it('throws 404 for a missing product', async () => {
+      await expect(
+        freeProductsService.replaceBlogCoverImage(new Types.ObjectId().toString(), { buffer: Buffer.from('img') } as Express.Multer.File),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    });
+  });
+
   describe('getPublishedProducts', () => {
     it('only returns published products', async () => {
       await FreeProduct.create({
@@ -161,6 +221,29 @@ describe('freeProducts.service', () => {
         freeProductsService.updateProduct(new Types.ObjectId().toString(), { title: 'x' }),
       ).rejects.toMatchObject({ statusCode: 404 });
     });
+
+    it('allows editing content on a blog product', async () => {
+      const product = await freeProductsService.uploadBlogProduct(
+        { title: 'A Free Blog', content: 'A' + 'x'.repeat(25), order: 0 },
+        { buffer: Buffer.from('img') } as Express.Multer.File,
+        objectId(),
+      );
+
+      const updated = await freeProductsService.updateProduct(product._id.toString(), {
+        content: 'B' + 'y'.repeat(25),
+      });
+      expect(updated.content).toContain('yyyyy');
+    });
+
+    it('rejects editing content on a non-blog product', async () => {
+      const product = await FreeProduct.create({
+        title: 'Link', type: 'link', fileUrl: 'https://a.com', description: 'x', createdBy: objectId(),
+      });
+
+      await expect(
+        freeProductsService.updateProduct(product._id.toString(), { content: 'x'.repeat(25) }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
   });
 
   describe('setProductPublished', () => {
@@ -191,6 +274,20 @@ describe('freeProducts.service', () => {
         resource_type: 'raw',
         type: 'authenticated',
       });
+      expect(await FreeProduct.findById(product._id)).toBeNull();
+    });
+
+    it('deleting a blog also destroys the Cloudinary cover image', async () => {
+      const product = await freeProductsService.uploadBlogProduct(
+        { title: 'A Free Blog', content: 'A' + 'x'.repeat(25), order: 0 },
+        { buffer: Buffer.from('img') } as Express.Multer.File,
+        objectId(),
+      );
+      cloudinaryMock.uploader.destroy.mockClear();
+
+      await freeProductsService.deleteProduct(product._id.toString());
+
+      expect(cloudinaryMock.uploader.destroy).toHaveBeenCalledWith('mock_public_id', { resource_type: 'image' });
       expect(await FreeProduct.findById(product._id)).toBeNull();
     });
 

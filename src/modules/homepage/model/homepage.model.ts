@@ -13,7 +13,13 @@ export interface IHomepageSettings extends Document {
   _id: Types.ObjectId;
   testimonialsCount: number;
   registrarsCount: number;
+  contactEmail?: string;
+  contactPhone?: string;
   youtubeLinks: Types.DocumentArray<IYoutubeLink>;
+  termsAndConditions: string;
+  termsAndConditionsUpdatedAt?: Date;
+  legalDisclaimer: string;
+  legalDisclaimerUpdatedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +37,16 @@ const homepageSettingsSchema = new Schema<IHomepageSettings>(
   {
     testimonialsCount: { type: Number, required: true, default: 0, min: 0 },
     registrarsCount:   { type: Number, required: true, default: 0, min: 0 },
+    contactEmail:      { type: String, trim: true, lowercase: true },
+    contactPhone:      { type: String, trim: true },
     youtubeLinks:      { type: [youtubeLinkSchema], default: [] },
+    // Tracked with its own timestamp — the document's own updatedAt also
+    // shifts on stat/youtube-link edits, so it can't tell "when were terms
+    // last edited" on its own. Same reasoning for legalDisclaimer below.
+    termsAndConditions:          { type: String, trim: true, default: '' },
+    termsAndConditionsUpdatedAt: { type: Date },
+    legalDisclaimer:             { type: String, trim: true, default: '' },
+    legalDisclaimerUpdatedAt:    { type: Date },
   },
   { timestamps: true },
 );

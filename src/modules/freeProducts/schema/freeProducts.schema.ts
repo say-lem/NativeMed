@@ -5,6 +5,7 @@ export const createLinkFreeProductSchema = z.object({
   title:       z.string().trim().min(2, 'Title is required').max(200),
   description: z.string().trim().min(5, 'Description must be at least 5 characters').max(2000),
   fileUrl:     z.string().url('Must be a valid URL'),
+  order:       z.coerce.number().int().min(0).default(0),
 });
 
 export type CreateLinkFreeProductInput = z.infer<typeof createLinkFreeProductSchema>;
@@ -18,13 +19,27 @@ export const uploadPdfFreeProductSchema = z.object({
 
 export type UploadPdfFreeProductInput = z.infer<typeof uploadPdfFreeProductSchema>;
 
-// ── Update — metadata only; a PDF file is never replaced in place ────────────
+// ── Blog product — cover image (multipart) + title + written content ─────────
+// This is expected to be the common case; description is optional since the
+// content itself carries the material.
+export const uploadBlogFreeProductSchema = z.object({
+  title:       z.string().trim().min(2, 'Title is required').max(200),
+  content:     z.string().trim().min(20, 'Content must be at least 20 characters').max(20000),
+  description: z.string().trim().min(5, 'Description must be at least 5 characters').max(2000).optional(),
+  order:       z.coerce.number().int().min(0).default(0),
+});
+
+export type UploadBlogFreeProductInput = z.infer<typeof uploadBlogFreeProductSchema>;
+
+// ── Update — metadata only; a PDF/cover image is never replaced in place here ─
 export const updateFreeProductSchema = z
   .object({
     title:       z.string().trim().min(2, 'Title is required').max(200).optional(),
     description: z.string().trim().min(5, 'Description must be at least 5 characters').max(2000).optional(),
-    // Only meaningful for type: link — rejected server-side for type: pdf.
+    // Only meaningful for type: link — rejected server-side for type: pdf/blog.
     fileUrl:     z.string().url('Must be a valid URL').optional(),
+    // Only meaningful for type: blog — rejected server-side otherwise.
+    content:     z.string().trim().min(20, 'Content must be at least 20 characters').max(20000).optional(),
     order:       z.coerce.number().int().min(0).optional(),
     isPublished: z.boolean().optional(),
   })
