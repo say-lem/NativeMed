@@ -15,6 +15,9 @@ export interface ICourse extends Document {
   _id: Types.ObjectId;
   title: string;
   description: string;
+  // Longer-form write-up shown on the course detail page — `description` stays
+  // the short summary used in listings/cards.
+  detailedDescription?: string;
   pricing: ICoursePricing;
   thumbnailUrl?: string;
   thumbnailPublicId?: string; // select:false — Cloudinary ref, used only for thumbnail deletion
@@ -45,6 +48,7 @@ const courseSchema = new Schema<ICourse>(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true, trim: true },
+    detailedDescription: { type: String, trim: true },
     pricing: {
       mocksessions_only: { type: tierPricingSchema, default: () => ({}) },
       mocksession_and_lectures: { type: tierPricingSchema, default: () => ({}) },
