@@ -46,6 +46,7 @@ const communityChannelLink = z
 export const createCourseSchema = z.object({
   title: z.string().min(3).trim(),
   description: z.string().min(10).trim(),
+  detailedDescription: z.string().min(10).trim().optional(),
   pricing: z.object({
     mocksessions_only: requiredTierPricing,
     mocksession_and_lectures: requiredTierPricing,
@@ -62,6 +63,7 @@ export const createCourseSchema = z.object({
 export const updateCourseSchema = z.object({
   title: z.string().min(3).trim().optional(),
   description: z.string().min(10).trim().optional(),
+  detailedDescription: z.string().min(10).trim().optional(),
   pricing: z
     .object({
       mocksessions_only: optionalTierPricing.optional(),
