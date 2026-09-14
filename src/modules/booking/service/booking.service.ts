@@ -114,9 +114,11 @@ export const getAllBookings = async (page = 1, limit = 20) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public — published products. Each date only lists the times still open;
-// a date disappears entirely once every one of the product's availableTimes
-// has been booked on it.
+// Public — published products. Each date lists every one of the product's
+// availableTimes with an isAvailable flag, so the frontend can render the
+// full set of time buttons and disable the ones already taken rather than
+// just shrinking the list. A date disappears entirely only once every time
+// on it has been booked (nothing left to offer, disabled or not).
 // ─────────────────────────────────────────────────────────────────────────────
 
 const withOnlyAvailableDates = (product: InstanceType<typeof BookingProduct>) => {
@@ -129,9 +131,9 @@ const withOnlyAvailableDates = (product: InstanceType<typeof BookingProduct>) =>
     .map((d) => ({
       _id: d._id,
       date: d.date,
-      availableTimes: allTimes.filter((t) => !d.bookedTimes.includes(t)),
+      times: allTimes.map((time) => ({ time, isAvailable: !d.bookedTimes.includes(time) })),
     }))
-    .filter((d) => d.availableTimes.length > 0);
+    .filter((d) => d.times.some((t) => t.isAvailable));
 
   return { ...json, availableDates };
 };

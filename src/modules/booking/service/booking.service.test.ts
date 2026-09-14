@@ -96,7 +96,7 @@ describe('booking.service', () => {
       expect(result.total).toBe(1);
     });
 
-    it('keeps a date visible with only the remaining time once one slot is booked', async () => {
+    it('keeps a date visible with the booked time marked unavailable, not removed', async () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const user = await createTestUser();
@@ -104,7 +104,10 @@ describe('booking.service', () => {
 
       const found = await bookingService.getPublishedBookingProductById(product._id.toString());
       expect(found.availableDates).toHaveLength(1);
-      expect(found.availableDates[0].availableTimes).toEqual(['14:00']);
+      expect(found.availableDates[0].times).toEqual([
+        { time: '10:00', isAvailable: false },
+        { time: '14:00', isAvailable: true },
+      ]);
     });
 
     it('hides a date only once every time slot on it has been booked', async () => {

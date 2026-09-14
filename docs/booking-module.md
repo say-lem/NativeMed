@@ -14,7 +14,7 @@ Multiple distinct session products can exist side by side (e.g. a 30-minute cons
 
 ## Public
 
-- `GET /api/v1/booking` — paginated list of published products. Each entry in a product's `availableDates` is reshaped to `{ _id, date, availableTimes }`, where `availableTimes` is that date's still-unbooked times only; dates with none left are omitted entirely.
+- `GET /api/v1/booking` — paginated list of published products. Each entry in a product's `availableDates` is reshaped to `{ _id, date, times }`, where `times` is every one of the product's `availableTimes` tagged with `{ time, isAvailable }` — so the frontend can render the full set of time buttons for that day and disable the ones already booked, rather than the list just shrinking. A date is only omitted entirely once every time on it is unavailable.
 - `GET /api/v1/booking/:productId` — a single published product, same shaping.
 
 ## Booking a session (authenticated user)
