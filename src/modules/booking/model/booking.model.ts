@@ -57,11 +57,19 @@ bookingProductSchema.index({ isPublished: 1 });
 export const BookingProduct = model<IBookingProduct>('BookingProduct', bookingProductSchema);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SessionBooking — a completed booking of one (date, time) slot on a
-// BookingProduct. Source of truth for "who booked what"; availableDates.
-// bookedTimes is the fast path for checking/reserving availability without
-// joining this collection.
+// SessionBooking — one (date, time) slot on a BookingProduct, held for a
+// user. Source of truth for "who booked what"; availableDates.bookedTimes is
+// the fast path for checking/reserving availability without joining this
+// collection.
+//
+// The slot is reserved (bookedTimes updated) the moment checkout starts, so
+// a second user can't also attempt to pay for it — but the booking itself
+// is only `confirmed` once Stripe confirms payment (see payments.service.ts's
+// webhook handling). If checkout expires unpaid, it's marked `cancelled` and
+// the slot is released back into the pool.
 // ─────────────────────────────────────────────────────────────────────────────
+
+export type SessionBookingStatus = 'pending' | 'confirmed' | 'cancelled';
 
 export interface ISessionBooking extends Document {
   _id: Types.ObjectId;
@@ -69,16 +77,20 @@ export interface ISessionBooking extends Document {
   userId: Types.ObjectId;
   date: Date;
   time: string;
+  status: SessionBookingStatus;
+  stripeCheckoutSessionId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const sessionBookingSchema = new Schema<ISessionBooking>(
   {
-    productId: { type: Schema.Types.ObjectId, ref: 'BookingProduct', required: true },
-    userId:    { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    date:      { type: Date, required: true },
-    time:      { type: String, required: true, trim: true },
+    productId:               { type: Schema.Types.ObjectId, ref: 'BookingProduct', required: true },
+    userId:                  { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    date:                    { type: Date, required: true },
+    time:                    { type: String, required: true, trim: true },
+    status:                  { type: String, enum: ['pending', 'confirmed', 'cancelled'], default: 'pending' },
+    stripeCheckoutSessionId: { type: String },
   },
   { timestamps: true },
 );
@@ -86,5 +98,6 @@ const sessionBookingSchema = new Schema<ISessionBooking>(
 // Admin booking list, newest first; per-product lookups
 sessionBookingSchema.index({ createdAt: -1 });
 sessionBookingSchema.index({ productId: 1 });
+sessionBookingSchema.index({ stripeCheckoutSessionId: 1 }, { sparse: true, unique: true });
 
 export const SessionBooking = model<ISessionBooking>('SessionBooking', sessionBookingSchema);

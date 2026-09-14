@@ -1,7 +1,10 @@
 import { Types } from 'mongoose';
+import type Stripe from 'stripe';
+import { env } from '../../../config/env';
+import { stripe } from '../../../config/stripe';
 import { AppError } from '../../../shared/utils/appError';
 import { User } from '../../auth/model/auth.model';
-import { BookingProduct, SessionBooking } from '../model/booking.model';
+import { BookingProduct, ISessionBooking, SessionBooking } from '../model/booking.model';
 import { sendBookingNotificationEmail } from '../email/booking.email.service';
 import {
   CreateBookingProductInput,
@@ -169,13 +172,26 @@ export const getMyBookings = async (userId: Types.ObjectId, page = 1, limit = 20
   return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
 };
 
+// Releases a held slot back into the pool — used both when checkout setup
+// fails synchronously and when a checkout session expires unpaid.
+const releaseSlot = async (productId: Types.ObjectId | string, date: Date, time: string): Promise<void> => {
+  await BookingProduct.updateOne(
+    { _id: productId, 'availableDates.date': date },
+    { $pull: { 'availableDates.$.bookedTimes': time } },
+  );
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
-// User — book a session
+// User — start a booking checkout
 //
-// Atomic reserve: the update only succeeds if the target (date, time) slot
-// hasn't already been booked, so two concurrent bookings for the same slot
-// can't both win. Other times on the same date remain bookable — only once
-// every time on a date is taken does the date drop out of availability.
+// The slot is reserved atomically up front (same guarantee as before: two
+// concurrent requests for the same (date, time) can't both win) so a second
+// user can't even start paying for a slot someone else is already mid-checkout
+// on. The booking itself stays `pending` — and unconfirmed slots are never
+// shown as booked to anyone except by being absent from availability — until
+// Stripe confirms payment via webhook (see confirmBookingPayment below). If
+// checkout is abandoned and the session expires, releasePendingBooking()
+// frees the slot back up.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const bookSession = async (
@@ -192,6 +208,11 @@ export const bookSession = async (
 
   if (!product.availableTimes.includes(input.time)) {
     throw new AppError('That time is not offered for this session', 400);
+  }
+
+  const unitAmount = Math.round(product.price * 100);
+  if (!Number.isFinite(unitAmount) || unitAmount < 50) {
+    throw new AppError('This session does not have a valid purchase price', 400);
   }
 
   const day = toDayStart(input.date);
@@ -214,15 +235,101 @@ export const bookSession = async (
     userId,
     date: day,
     time: input.time,
+    status: 'pending',
   });
 
-  sendBookingNotificationEmail({
-    productTitle: product.title,
-    date: day,
-    time: input.time,
-    bookedByName: user.fullName,
-    bookedByEmail: user.email,
-  }).catch((err) => console.error('Booking notification email failed:', err));
+  const successUrl = input.successUrl ?? `${env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = input.cancelUrl ?? `${env.CLIENT_URL}/payment/cancelled`;
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer_email: user.email,
+      line_items: [
+        {
+          price_data: {
+            currency: 'gbp',
+            unit_amount: unitAmount,
+            product_data: {
+              name: `${product.title} — one-on-one session`,
+              metadata: { productId: product._id.toString() },
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: {
+        type: 'booking',
+        bookingId: booking._id.toString(),
+        productId: product._id.toString(),
+        userId: userId.toString(),
+      },
+    });
+
+    booking.stripeCheckoutSessionId = session.id;
+    await booking.save();
+
+    return { bookingId: booking._id, sessionId: session.id, url: session.url };
+  } catch (err) {
+    // Checkout never started — release the hold rather than leaving a dead
+    // reservation behind.
+    await releaseSlot(productId, day, input.time);
+    await booking.deleteOne();
+    throw err;
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Called from the Stripe webhook (payments.service.ts) once a booking's
+// checkout session completes successfully.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const confirmBookingPayment = async (
+  session: Stripe.Checkout.Session,
+): Promise<ISessionBooking | null> => {
+  const bookingId = session.metadata?.bookingId;
+  if (!bookingId) return null;
+
+  const booking = await SessionBooking.findById(bookingId);
+  if (!booking || booking.status !== 'pending') return booking;
+
+  booking.status = 'confirmed';
+  await booking.save();
+
+  const [product, user] = await Promise.all([
+    BookingProduct.findById(booking.productId),
+    User.findById(booking.userId),
+  ]);
+
+  if (product && user) {
+    sendBookingNotificationEmail({
+      productTitle: product.title,
+      date: booking.date,
+      time: booking.time,
+      bookedByName: user.fullName,
+      bookedByEmail: user.email,
+    }).catch((err) => console.error('Booking notification email failed:', err));
+  }
 
   return booking;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Called from the Stripe webhook when a booking's checkout session expires
+// unpaid — releases the held slot and marks the booking cancelled.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const releasePendingBooking = async (session: Stripe.Checkout.Session): Promise<void> => {
+  const bookingId = session.metadata?.bookingId;
+  if (!bookingId) return;
+
+  const booking = await SessionBooking.findById(bookingId);
+  if (!booking || booking.status !== 'pending') return;
+
+  await releaseSlot(booking.productId, booking.date, booking.time);
+
+  booking.status = 'cancelled';
+  await booking.save();
 };

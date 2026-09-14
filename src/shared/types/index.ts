@@ -39,7 +39,7 @@ export interface PaginatedResult<T> {
 export type ContentType = 'video' | 'audio' | 'pdf';
 
 // ── Payment item types ────────────────────────────────────────────────────────
-export type PaymentItemType = 'case_bank' | 'course';
+export type PaymentItemType = 'case_bank' | 'course' | 'booking';
 
 // ── Payment methods ───────────────────────────────────────────────────────────
 export type PaymentMethod = 'stripe';

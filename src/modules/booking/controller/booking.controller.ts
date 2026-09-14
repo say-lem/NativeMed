@@ -35,8 +35,8 @@ export const getPublishedBookingProductById = asyncHandler(async (req: Request, 
 
 export const bookSession = asyncHandler(async (req: AuthRequest, res: Response) => {
   const input = req.body as BookSessionInput;
-  const booking = await bookingService.bookSession(getSingleParam(req.params.productId), input, req.user!._id);
-  return ApiResponse.created(res, 'Session booked', booking);
+  const checkout = await bookingService.bookSession(getSingleParam(req.params.productId), input, req.user!._id);
+  return ApiResponse.success(res, 'Checkout session created — complete payment to confirm the booking', checkout);
 });
 
 export const getMyBookings = asyncHandler(async (req: AuthRequest, res: Response) => {

@@ -29,6 +29,8 @@ export type AddAvailableDateInput = z.infer<typeof addAvailableDateSchema>;
 export const bookSessionSchema = z.object({
   date: z.coerce.date({ message: 'A valid date is required' }),
   time: timeField,
+  successUrl: z.string().url().optional(),
+  cancelUrl: z.string().url().optional(),
 });
 
 export type BookSessionInput = z.infer<typeof bookSessionSchema>;

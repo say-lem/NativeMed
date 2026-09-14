@@ -16,6 +16,7 @@ import { ISubscription, Subscription } from '../../subscriptions/model/subscript
 import { resolveCaseBankPlanPrice } from '../../subscriptions/constants/plans';
 import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
+import * as bookingService from '../../booking/service/booking.service';
 import {
   getInvoicePaymentIntentId,
   getInvoiceSubscriptionId,
@@ -215,6 +216,9 @@ export const handleWebhookEvent = async (event: Stripe.Event) => {
     case 'checkout.session.completed':
       await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session, eventCreated);
       break;
+    case 'checkout.session.expired':
+      await handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
+      break;
     case 'invoice.payment_succeeded':
       await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice, eventCreated);
       break;
@@ -278,10 +282,49 @@ const handleCheckoutCompleted = async (
   session: Stripe.Checkout.Session,
   eventCreated: number,
 ) => {
+  if (session.mode === 'payment' && session.metadata?.type === 'booking') {
+    await handleBookingCheckoutCompleted(session);
+    return;
+  }
+
   if (session.mode !== 'subscription' || !session.subscription) return;
 
   const stripeSub = await stripe.subscriptions.retrieve(session.subscription as string);
   await syncSubscriptionFromStripe(stripeSub, session.metadata ?? undefined, eventCreated);
+};
+
+// One-time booking payment — confirm the SessionBooking (domain state + admin
+// email, owned by the booking module) then record the Payment (owned here,
+// same as every other item type).
+const handleBookingCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
+  const booking = await bookingService.confirmBookingPayment(session);
+  if (!booking) return;
+
+  await Payment.findOneAndUpdate(
+    { stripeCheckoutSessionId: session.id },
+    {
+      userId: booking.userId,
+      bookingId: booking._id,
+      amount: session.amount_total ?? 0,
+      currency: session.currency ?? 'gbp',
+      status: 'succeeded',
+      method: 'stripe',
+      itemType: 'booking',
+      stripeCheckoutSessionId: session.id,
+      stripePaymentIntentId:
+        typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
+      paidAt: new Date(),
+    },
+    { upsert: true, new: true },
+  );
+};
+
+// Checkout abandoned/expired unpaid — release the held slot (subscription
+// checkouts need no equivalent: nothing was reserved ahead of payment there).
+const handleCheckoutExpired = async (session: Stripe.Checkout.Session) => {
+  if (session.mode === 'payment' && session.metadata?.type === 'booking') {
+    await bookingService.releasePendingBooking(session);
+  }
 };
 
 const handleInvoicePaymentSucceeded = async (invoice: Stripe.Invoice, eventCreated: number) => {
