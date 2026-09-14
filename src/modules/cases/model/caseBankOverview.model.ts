@@ -8,6 +8,9 @@ export interface ICaseBankOverview extends Document {
   _id: Types.ObjectId;
   title: string;
   description: string;
+  // Longer-form write-up shown on the case bank's own product page —
+  // `description` stays the short summary used in the catalog listing.
+  detailedDescription?: string;
   imageUrl?: string;
   imagePublicId?: string; // select:false — Cloudinary ref, used only for replace/delete
   createdAt: Date;
@@ -23,6 +26,7 @@ const caseBankOverviewSchema = new Schema<ICaseBankOverview>(
       maxlength: 2000,
       default: 'Unlimited access to all mock clinical cases.',
     },
+    detailedDescription: { type: String, trim: true, maxlength: 20000 },
     imageUrl: { type: String },
     imagePublicId: { type: String, select: false },
   },

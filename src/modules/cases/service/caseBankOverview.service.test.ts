@@ -32,6 +32,15 @@ describe('caseBankOverview.service', () => {
       expect(updated.title).toBe('v1');
       expect(updated.description).toBe('A new description.');
     });
+
+    it('sets detailedDescription independently of the short description', async () => {
+      const updated = await caseBankOverviewService.updateCaseBankOverview({
+        detailedDescription: 'A much longer write-up of everything the case bank includes.',
+      });
+
+      expect(updated.detailedDescription).toBe('A much longer write-up of everything the case bank includes.');
+      expect(updated.description).toBe('Unlimited access to all mock clinical cases.'); // default, untouched
+    });
   });
 
   describe('updateCaseBankOverviewImage', () => {
