@@ -74,7 +74,7 @@ export const addAvailableDate = async (productId: string, input: AddAvailableDat
   const exists = product.availableDates.some((d) => d.date.getTime() === day.getTime());
   if (exists) throw new AppError('That date has already been added', 400);
 
-  product.availableDates.push({ date: day, isBooked: false });
+  product.availableDates.push({ date: day, bookedTimes: [] });
   await product.save();
 
   return product;
@@ -86,7 +86,9 @@ export const removeAvailableDate = async (productId: string, dateId: string) => 
 
   const entry = product.availableDates.id(dateId);
   if (!entry) throw new AppError('Date not found', 404);
-  if (entry.isBooked) throw new AppError('Cannot remove a date that has already been booked', 400);
+  if (entry.bookedTimes.length > 0) {
+    throw new AppError('Cannot remove a date that already has bookings', 400);
+  }
 
   product.availableDates.pull(dateId);
   await product.save();
@@ -112,13 +114,26 @@ export const getAllBookings = async (page = 1, limit = 20) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public — published products, with only still-available dates shown
+// Public — published products. Each date only lists the times still open;
+// a date disappears entirely once every one of the product's availableTimes
+// has been booked on it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const withOnlyAvailableDates = (product: InstanceType<typeof BookingProduct>) => {
-  const json = product.toJSON() as unknown as Record<string, unknown> & { availableDates: { isBooked: boolean }[] };
-  json.availableDates = json.availableDates.filter((d) => !d.isBooked);
-  return json;
+  const json = product.toJSON() as unknown as Record<string, unknown> & {
+    availableTimes: string[];
+    availableDates: { _id: unknown; date: Date; bookedTimes: string[] }[];
+  };
+  const allTimes = json.availableTimes;
+  const availableDates = json.availableDates
+    .map((d) => ({
+      _id: d._id,
+      date: d.date,
+      availableTimes: allTimes.filter((t) => !d.bookedTimes.includes(t)),
+    }))
+    .filter((d) => d.availableTimes.length > 0);
+
+  return { ...json, availableDates };
 };
 
 export const getPublishedBookingProducts = async (page = 1, limit = 20) => {
@@ -155,9 +170,10 @@ export const getMyBookings = async (userId: Types.ObjectId, page = 1, limit = 20
 // ─────────────────────────────────────────────────────────────────────────────
 // User — book a session
 //
-// Atomic reserve: the update only succeeds if the target date is still
-// present and unbooked, so two concurrent bookings for the same date can't
-// both win.
+// Atomic reserve: the update only succeeds if the target (date, time) slot
+// hasn't already been booked, so two concurrent bookings for the same slot
+// can't both win. Other times on the same date remain bookable — only once
+// every time on a date is taken does the date drop out of availability.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const bookSession = async (
@@ -179,16 +195,16 @@ export const bookSession = async (
   const day = toDayStart(input.date);
 
   const reserved = await BookingProduct.findOneAndUpdate(
-    { _id: productId, availableDates: { $elemMatch: { date: day, isBooked: false } } },
-    { $set: { 'availableDates.$.isBooked': true } },
+    { _id: productId, availableDates: { $elemMatch: { date: day, bookedTimes: { $ne: input.time } } } },
+    { $push: { 'availableDates.$.bookedTimes': input.time } },
   );
 
   if (!reserved) {
-    const dateExists = product.availableDates.some((d) => d.date.getTime() === day.getTime());
-    throw new AppError(
-      dateExists ? 'That date has already been booked' : 'That date is not available',
-      dateExists ? 409 : 404,
-    );
+    const dateEntry = product.availableDates.find((d) => d.date.getTime() === day.getTime());
+    if (!dateEntry) {
+      throw new AppError('That date is not available', 404);
+    }
+    throw new AppError('That time slot has already been booked', 409);
   }
 
   const booking = await SessionBooking.create({
