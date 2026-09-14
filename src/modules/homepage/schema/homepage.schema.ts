@@ -35,6 +35,24 @@ export const updateYoutubeLinkSchema = z
 
 export type UpdateYoutubeLinkInput = z.infer<typeof updateYoutubeLinkSchema>;
 
+export const createFaqSchema = z.object({
+  question: z.string().trim().min(1, 'Question is required').max(500),
+  answer: z.string().trim().min(1, 'Answer is required').max(5000),
+  order: z.number().int().min(0).optional(),
+});
+
+export type CreateFaqInput = z.infer<typeof createFaqSchema>;
+
+export const updateFaqSchema = z
+  .object({
+    question: z.string().trim().min(1, 'Question is required').max(500).optional(),
+    answer: z.string().trim().min(1, 'Answer is required').max(5000).optional(),
+    order: z.number().int().min(0).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
+
+export type UpdateFaqInput = z.infer<typeof updateFaqSchema>;
+
 export const updateTermsAndConditionsSchema = z.object({
   content: z.string().trim().min(1, 'Content is required').max(20000),
 });

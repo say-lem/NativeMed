@@ -42,3 +42,14 @@ Same pattern and singleton as terms and conditions above, but its own field/endp
 - `GET /api/v1/homepage/legal-disclaimer` (public) — `{ content, updatedAt }`. `content` is `''` and `updatedAt` is `null` until an admin sets it.
 - `GET /api/v1/admin/homepage/legal-disclaimer` — same shape, for the admin editor to load current content.
 - `PATCH /api/v1/admin/homepage/legal-disclaimer` — body: `{ content }` (required, non-empty). First call creates it, later calls edit in place.
+
+## FAQs
+
+An admin-managed list of question/answer pairs on the same singleton document. Reading is fully open; only writes require an admin.
+
+- `GET /api/v1/homepage/faqs` (public) — array of `{ _id, question, answer, order }`, sorted by `order`.
+- `POST /api/v1/admin/homepage/faqs` — body: `question`, `answer`, optional `order`.
+- `PATCH /api/v1/admin/homepage/faqs/:faqId` — any of `question`, `answer`, `order` (at least one field).
+- `DELETE /api/v1/admin/homepage/faqs/:faqId` — removes the FAQ.
+
+The two write endpoints return the full updated settings document (same as YouTube links).

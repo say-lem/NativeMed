@@ -5,6 +5,8 @@ import {
   UpdateHomepageStatsInput,
   CreateYoutubeLinkInput,
   UpdateYoutubeLinkInput,
+  CreateFaqInput,
+  UpdateFaqInput,
   UpdateTermsAndConditionsInput,
   UpdateLegalDisclaimerInput,
 } from '../schema/homepage.schema';
@@ -84,6 +86,44 @@ export const deleteYoutubeLink = async (linkId: string) => {
   if (!link) throw new AppError('YouTube link not found', 404);
 
   settings.youtubeLinks.pull(linkId);
+  await settings.save();
+
+  return settings;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public / Admin — FAQ list (managed on the singleton document, open to read)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const getFaqs = async () => {
+  const settings = await getOrCreateSettings();
+  return [...settings.faqs].sort((a, b) => a.order - b.order);
+};
+
+export const addFaq = async (input: CreateFaqInput) => {
+  const settings = await getOrCreateSettings();
+  settings.faqs.push({ order: 0, ...input });
+  await settings.save();
+  return settings;
+};
+
+export const updateFaq = async (faqId: string, input: UpdateFaqInput) => {
+  const settings = await getOrCreateSettings();
+  const faq = settings.faqs.id(faqId);
+  if (!faq) throw new AppError('FAQ not found', 404);
+
+  Object.assign(faq, input);
+  await settings.save();
+
+  return settings;
+};
+
+export const deleteFaq = async (faqId: string) => {
+  const settings = await getOrCreateSettings();
+  const faq = settings.faqs.id(faqId);
+  if (!faq) throw new AppError('FAQ not found', 404);
+
+  settings.faqs.pull(faqId);
   await settings.save();
 
   return settings;

@@ -5,6 +5,8 @@ import {
   UpdateHomepageStatsInput,
   CreateYoutubeLinkInput,
   UpdateYoutubeLinkInput,
+  CreateFaqInput,
+  UpdateFaqInput,
   UpdateTermsAndConditionsInput,
   UpdateLegalDisclaimerInput,
 } from '../schema/homepage.schema';
@@ -32,6 +34,11 @@ export const getLegalDisclaimer = asyncHandler(async (_req: Request, res: Respon
   return ApiResponse.success(res, 'Legal disclaimer fetched', data);
 });
 
+export const getFaqs = asyncHandler(async (_req: Request, res: Response) => {
+  const faqs = await homepageService.getFaqs();
+  return ApiResponse.success(res, 'FAQs fetched', faqs);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Admin
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,6 +64,23 @@ export const updateYoutubeLink = asyncHandler(async (req: Request, res: Response
 export const deleteYoutubeLink = asyncHandler(async (req: Request, res: Response) => {
   const settings = await homepageService.deleteYoutubeLink(getSingleParam(req.params.linkId));
   return ApiResponse.success(res, 'YouTube link deleted', settings);
+});
+
+export const addFaq = asyncHandler(async (req: Request, res: Response) => {
+  const input = req.body as CreateFaqInput;
+  const settings = await homepageService.addFaq(input);
+  return ApiResponse.created(res, 'FAQ added', settings);
+});
+
+export const updateFaq = asyncHandler(async (req: Request, res: Response) => {
+  const input = req.body as UpdateFaqInput;
+  const settings = await homepageService.updateFaq(getSingleParam(req.params.faqId), input);
+  return ApiResponse.success(res, 'FAQ updated', settings);
+});
+
+export const deleteFaq = asyncHandler(async (req: Request, res: Response) => {
+  const settings = await homepageService.deleteFaq(getSingleParam(req.params.faqId));
+  return ApiResponse.success(res, 'FAQ deleted', settings);
 });
 
 export const updateTermsAndConditions = asyncHandler(async (req: Request, res: Response) => {

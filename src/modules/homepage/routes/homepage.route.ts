@@ -10,5 +10,6 @@ router.get('/', homepageController.getHomepageData);
 // Own endpoint, separate from the general homepage feed above.
 router.get('/terms', homepageController.getTermsAndConditions);
 router.get('/legal-disclaimer', homepageController.getLegalDisclaimer);
+router.get('/faqs', homepageController.getFaqs);
 
 export default router;

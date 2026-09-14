@@ -159,6 +159,63 @@ describe('homepage.service', () => {
     });
   });
 
+  describe('faqs', () => {
+    const validFaq = { question: 'How do I enroll?', answer: 'Go to the course page and click enroll.' };
+
+    it('returns an empty list before any FAQ is added', async () => {
+      const faqs = await homepageService.getFaqs();
+      expect(faqs).toEqual([]);
+    });
+
+    it('adds a FAQ to the singleton document', async () => {
+      const settings = await homepageService.addFaq(validFaq);
+
+      expect(settings.faqs).toHaveLength(1);
+      expect(settings.faqs[0]).toMatchObject(validFaq);
+    });
+
+    it('returns FAQs sorted by order', async () => {
+      await homepageService.addFaq({ ...validFaq, question: 'Second', order: 2 });
+      await homepageService.addFaq({ ...validFaq, question: 'First', order: 1 });
+
+      const faqs = await homepageService.getFaqs();
+      expect(faqs.map((f) => f.question)).toEqual(['First', 'Second']);
+    });
+
+    it('updates a FAQ by id', async () => {
+      const settings = await homepageService.addFaq(validFaq);
+      const faqId = settings.faqs[0]._id.toString();
+
+      const updated = await homepageService.updateFaq(faqId, { answer: 'Updated answer.' });
+      expect(updated.faqs[0].answer).toBe('Updated answer.');
+      expect(updated.faqs[0].question).toBe(validFaq.question);
+    });
+
+    it('throws 404 updating a missing FAQ', async () => {
+      await homepageService.addFaq(validFaq);
+
+      await expect(
+        homepageService.updateFaq(new Types.ObjectId().toString(), { answer: 'x' }),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    });
+
+    it('deletes a FAQ by id', async () => {
+      const settings = await homepageService.addFaq(validFaq);
+      const faqId = settings.faqs[0]._id.toString();
+
+      const updated = await homepageService.deleteFaq(faqId);
+      expect(updated.faqs).toHaveLength(0);
+    });
+
+    it('throws 404 deleting a missing FAQ', async () => {
+      await homepageService.addFaq(validFaq);
+
+      await expect(
+        homepageService.deleteFaq(new Types.ObjectId().toString()),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    });
+  });
+
   describe('terms and conditions', () => {
     it('returns empty content and no updatedAt before anything is set', async () => {
       const data = await homepageService.getTermsAndConditions();

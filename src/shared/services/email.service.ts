@@ -26,6 +26,12 @@ if (env.NODE_ENV === 'production' || env.SMTP_HOST) {
 
 // ── Send helper 
 
+export interface MailAttachment {
+  filename: string;
+  content: string;
+  contentType?: string;
+}
+
 export interface MailOptions {
   to: string;
   subject: string;
@@ -35,6 +41,7 @@ export interface MailOptions {
   replyTo?: string;
   // When true, body content is suppressed from dev logs (reset links, temp passwords, etc.)
   containsSensitiveData?: boolean;
+  attachments?: MailAttachment[];
 }
 
 /**
@@ -58,6 +65,7 @@ export const sendMail = async (options: MailOptions): Promise<void> => {
     subject: options.subject,
     html: options.html,
     text: options.text,
+    attachments: options.attachments,
   };
 
   const info = await transporter.sendMail(mailOptions);
