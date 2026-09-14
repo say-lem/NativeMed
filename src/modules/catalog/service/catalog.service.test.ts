@@ -1,4 +1,5 @@
 import * as catalogService from './catalog.service';
+import * as caseBankOverviewService from '../../cases/service/caseBankOverview.service';
 import { BookingProduct } from '../../booking/model/booking.model';
 import { MockCase } from '../../cases/model/cases.model';
 import { CASE_BANK_PLAN } from '../../subscriptions/constants/plans';
@@ -38,10 +39,24 @@ describe('catalog.service', () => {
       const caseBank = products.find((p) => p.type === 'case_bank');
       expect(caseBank).toBeDefined();
       expect(caseBank).toMatchObject({
-        title: CASE_BANK_PLAN.name,
-        description: CASE_BANK_PLAN.description,
+        title: 'Case Bank Access', // CaseBankOverview default, before any admin edit
         prices: CASE_BANK_PLAN.prices,
         caseCount: 0,
+        imageUrl: null,
+      });
+    });
+
+    it('reflects the admin-editable case bank overview (title/description/image)', async () => {
+      await caseBankOverviewService.updateCaseBankOverview({
+        title: 'MRCGP Case Bank',
+        description: 'Practice with real exam-style clinical stations.',
+      });
+
+      const products = await catalogService.getAllProducts();
+      const caseBank = products.find((p) => p.type === 'case_bank');
+      expect(caseBank).toMatchObject({
+        title: 'MRCGP Case Bank',
+        description: 'Practice with real exam-style clinical stations.',
       });
     });
 

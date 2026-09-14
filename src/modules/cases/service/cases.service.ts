@@ -35,9 +35,12 @@ const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const FREE_CASE_PREVIEW_LIMIT = 5;
 
 const hasFullCaseBankAccess = async (
-  userId: Types.ObjectId,
-  role: UserRole,
+  userId?: Types.ObjectId,
+  role?: UserRole,
 ): Promise<boolean> => {
+  // Anonymous visitor — same treatment as an unsubscribed logged-in user:
+  // free-preview cases only.
+  if (!userId || !role) return false;
   if (role === 'admin') return true;
   return hasCaseBankAccess(userId);
 };
@@ -53,8 +56,8 @@ const getFreePreviewCaseIds = async (): Promise<Types.ObjectId[]> => {
 
 const applyCaseBankAccessFilter = async (
   filter: Record<string, unknown>,
-  userId: Types.ObjectId,
-  role: UserRole,
+  userId?: Types.ObjectId,
+  role?: UserRole,
 ): Promise<Record<string, unknown>> => {
   if (await hasFullCaseBankAccess(userId, role)) return filter;
   const freeIds = await getFreePreviewCaseIds();
@@ -63,8 +66,8 @@ const applyCaseBankAccessFilter = async (
 
 const assertCaseDetailAccess = async (
   caseId: string,
-  userId: Types.ObjectId,
-  role: UserRole,
+  userId?: Types.ObjectId,
+  role?: UserRole,
 ): Promise<void> => {
   if (await hasFullCaseBankAccess(userId, role)) return;
   const freeIds = await getFreePreviewCaseIds();
@@ -90,8 +93,8 @@ const assertCaseDetailAccess = async (
 
 export const getPublishedCases = async (
   params: CaseFilterInput,
-  userId: Types.ObjectId,
-  role: UserRole,
+  userId?: Types.ObjectId,
+  role?: UserRole,
 ) => {
   const baseFilter = buildFilter(params, true);
   const filter = await applyCaseBankAccessFilter(baseFilter, userId, role);
@@ -126,8 +129,8 @@ export const getPublishedCases = async (
  */
 export const getPublishedCaseById = async (
   caseId: string,
-  userId: Types.ObjectId,
-  role: UserRole,
+  userId?: Types.ObjectId,
+  role?: UserRole,
 ) => {
   await assertCaseDetailAccess(caseId, userId, role);
   const mockCase = await MockCase.findOne({ _id: caseId, isPublished: true });
@@ -145,8 +148,8 @@ export interface PublishedSpecialtyCount {
 }
 
 export const getPublishedSpecialties = async (
-  userId: Types.ObjectId,
-  role: UserRole,
+  userId?: Types.ObjectId,
+  role?: UserRole,
 ): Promise<PublishedSpecialtyCount[]> => {
   const match: Record<string, unknown> = { isPublished: true };
   if (!(await hasFullCaseBankAccess(userId, role))) {
@@ -168,8 +171,8 @@ export const getPublishedSpecialties = async (
 export const getCasesBySpecialty = async (
   specialty: string,
   params: CaseFilterInput,
-  userId: Types.ObjectId,
-  role: UserRole,
+  userId?: Types.ObjectId,
+  role?: UserRole,
 ) => {
   const scopedParams: CaseFilterInput = { ...params, specialty };
   return getPublishedCases(scopedParams, userId, role);
