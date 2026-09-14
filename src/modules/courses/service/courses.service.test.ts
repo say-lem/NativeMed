@@ -54,6 +54,19 @@ describe('courses.service', () => {
   });
 
   describe('updateCourse', () => {
+    it('sets detailedDescription', async () => {
+      const adminId = objectId();
+      const created = await Course.create({ ...validCreateInput, createdBy: adminId });
+
+      const updated = await coursesService.updateCourse(created._id.toString(), {
+        detailedDescription: 'A much longer write-up of what this course covers.',
+      });
+
+      expect((updated as unknown as { detailedDescription: string }).detailedDescription).toBe(
+        'A much longer write-up of what this course covers.',
+      );
+    });
+
     it('merges partial tier pricing instead of overwriting the whole tier', async () => {
       const adminId = objectId();
       const created = await Course.create({ ...validCreateInput, createdBy: adminId });
@@ -180,6 +193,19 @@ describe('courses.service', () => {
       const published = await coursesService.getAllPublished();
       expect(published).toHaveLength(1);
       expect((published[0] as unknown as { paymentsPaused: boolean }).paymentsPaused).toBe(true);
+    });
+
+    it('getCourseById includes detailedDescription when set', async () => {
+      const adminId = objectId();
+      const created = await Course.create({
+        ...validCreateInput,
+        createdBy: adminId,
+        isPublished: true,
+        detailedDescription: 'A much longer write-up of what this course covers.',
+      });
+
+      const found = await coursesService.getCourseById(created._id.toString());
+      expect(found.detailedDescription).toBe('A much longer write-up of what this course covers.');
     });
 
     it('getCourseById 404s for an unpublished course', async () => {
