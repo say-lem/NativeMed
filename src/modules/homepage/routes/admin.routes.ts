@@ -6,6 +6,8 @@ import {
   updateHomepageStatsSchema,
   createYoutubeLinkSchema,
   updateYoutubeLinkSchema,
+  createFaqSchema,
+  updateFaqSchema,
   updateTermsAndConditionsSchema,
   updateLegalDisclaimerSchema,
 } from '../schema/homepage.schema';
@@ -21,6 +23,11 @@ router.patch('/', validate(updateHomepageStatsSchema), homepageController.update
 router.post('/youtube-links', validate(createYoutubeLinkSchema), homepageController.addYoutubeLink);
 router.patch('/youtube-links/:linkId', validate(updateYoutubeLinkSchema), homepageController.updateYoutubeLink);
 router.delete('/youtube-links/:linkId', homepageController.deleteYoutubeLink);
+
+// Admin-managed FAQ list — reading it is open (see homepage.route.ts), only writes are gated here
+router.post('/faqs', validate(createFaqSchema), homepageController.addFaq);
+router.patch('/faqs/:faqId', validate(updateFaqSchema), homepageController.updateFaq);
+router.delete('/faqs/:faqId', homepageController.deleteFaq);
 
 // Terms and conditions — own endpoint. First PATCH creates it, later ones edit in place.
 router.get('/terms', homepageController.getTermsAndConditions);

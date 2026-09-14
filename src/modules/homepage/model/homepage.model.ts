@@ -7,6 +7,13 @@ export interface IYoutubeLink {
   order: number;
 }
 
+export interface IFaq {
+  _id: Types.ObjectId;
+  question: string;
+  answer: string;
+  order: number;
+}
+
 // Singleton — one document holds every homepage stat/link. There is never
 // more than one; see getSettings() in the service for the upsert-on-read.
 export interface IHomepageSettings extends Document {
@@ -16,6 +23,7 @@ export interface IHomepageSettings extends Document {
   contactEmail?: string;
   contactPhone?: string;
   youtubeLinks: Types.DocumentArray<IYoutubeLink>;
+  faqs: Types.DocumentArray<IFaq>;
   termsAndConditions: string;
   termsAndConditionsUpdatedAt?: Date;
   legalDisclaimer: string;
@@ -33,6 +41,15 @@ const youtubeLinkSchema = new Schema<IYoutubeLink>(
   { _id: true },
 );
 
+const faqSchema = new Schema<IFaq>(
+  {
+    question: { type: String, required: true, trim: true, maxlength: 500 },
+    answer:   { type: String, required: true, trim: true, maxlength: 5000 },
+    order:    { type: Number, required: true, default: 0 },
+  },
+  { _id: true },
+);
+
 const homepageSettingsSchema = new Schema<IHomepageSettings>(
   {
     testimonialsCount: { type: Number, required: true, default: 0, min: 0 },
@@ -40,6 +57,7 @@ const homepageSettingsSchema = new Schema<IHomepageSettings>(
     contactEmail:      { type: String, trim: true, lowercase: true },
     contactPhone:      { type: String, trim: true },
     youtubeLinks:      { type: [youtubeLinkSchema], default: [] },
+    faqs:              { type: [faqSchema], default: [] },
     // Tracked with its own timestamp — the document's own updatedAt also
     // shifts on stat/youtube-link edits, so it can't tell "when were terms
     // last edited" on its own. Same reasoning for legalDisclaimer below.
