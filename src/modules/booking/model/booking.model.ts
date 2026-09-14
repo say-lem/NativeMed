@@ -3,7 +3,10 @@ import { Schema, model, Document, Types } from 'mongoose';
 export interface IAvailableDate {
   _id: Types.ObjectId;
   date: Date;
-  isBooked: boolean;
+  // Times (from the product's availableTimes) already taken on this date.
+  // The date itself is only fully unavailable once every time is booked —
+  // see withOnlyAvailableDates() in the service.
+  bookedTimes: string[];
 }
 
 export interface IBookingProduct extends Document {
@@ -11,8 +14,8 @@ export interface IBookingProduct extends Document {
   title: string;
   description: string;
   price: number;
-  // Reusable time-of-day options offered on every available date — not
-  // consumed individually; booking any time on a date removes the whole date.
+  // Reusable time-of-day options offered on every available date. Each
+  // (date, time) pair is booked independently — see IAvailableDate.bookedTimes.
   availableTimes: string[];
   availableDates: Types.DocumentArray<IAvailableDate>;
   isPublished: boolean;
@@ -23,8 +26,8 @@ export interface IBookingProduct extends Document {
 
 const availableDateSchema = new Schema<IAvailableDate>(
   {
-    date:     { type: Date, required: true },
-    isBooked: { type: Boolean, default: false },
+    date:        { type: Date, required: true },
+    bookedTimes: { type: [String], default: [] },
   },
   { _id: true },
 );
@@ -54,9 +57,10 @@ bookingProductSchema.index({ isPublished: 1 });
 export const BookingProduct = model<IBookingProduct>('BookingProduct', bookingProductSchema);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SessionBooking — a completed booking of one date on a BookingProduct.
-// Source of truth for "who booked what"; availableDates.isBooked is the fast
-// path for checking/reserving availability without joining this collection.
+// SessionBooking — a completed booking of one (date, time) slot on a
+// BookingProduct. Source of truth for "who booked what"; availableDates.
+// bookedTimes is the fast path for checking/reserving availability without
+// joining this collection.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ISessionBooking extends Document {

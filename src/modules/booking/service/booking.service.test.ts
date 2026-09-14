@@ -43,7 +43,7 @@ describe('booking.service', () => {
       const updated = await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
 
       expect(updated.availableDates).toHaveLength(1);
-      expect(updated.availableDates[0].isBooked).toBe(false);
+      expect(updated.availableDates[0].bookedTimes).toEqual([]);
     });
 
     it('rejects adding the same calendar date twice', async () => {
@@ -72,7 +72,7 @@ describe('booking.service', () => {
       ).rejects.toMatchObject({ statusCode: 404 });
     });
 
-    it('rejects removing a booked date', async () => {
+    it('rejects removing a date that already has a booking', async () => {
       const product = await bookingService.createBookingProduct({ ...baseProductInput, isPublished: true }, objectId());
       const withDate = await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const dateId = withDate.availableDates[0]._id.toString();
@@ -96,15 +96,28 @@ describe('booking.service', () => {
       expect(result.total).toBe(1);
     });
 
-    it('hides booked dates from the public response', async () => {
+    it('keeps a date visible with only the remaining time once one slot is booked', async () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
-      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-06') });
       const user = await createTestUser();
       await bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user._id);
 
       const found = await bookingService.getPublishedBookingProductById(product._id.toString());
       expect(found.availableDates).toHaveLength(1);
+      expect(found.availableDates[0].availableTimes).toEqual(['14:00']);
+    });
+
+    it('hides a date only once every time slot on it has been booked', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-06') });
+      const user = await createTestUser();
+      await bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user._id);
+      await bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '14:00' }, user._id);
+
+      const found = await bookingService.getPublishedBookingProductById(product._id.toString());
+      expect(found.availableDates).toHaveLength(1);
+      expect(found.availableDates[0].date).toEqual(new Date('2026-03-06'));
     });
 
     it('throws 404 for an unpublished product', async () => {
@@ -134,7 +147,7 @@ describe('booking.service', () => {
       expect(await SessionBooking.countDocuments()).toBe(1);
 
       const updatedProduct = await BookingProduct.findById(product._id);
-      expect(updatedProduct!.availableDates[0].isBooked).toBe(true);
+      expect(updatedProduct!.availableDates[0].bookedTimes).toEqual(['10:00']);
 
       expect(mockedSendBookingNotificationEmail).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -165,7 +178,25 @@ describe('booking.service', () => {
       ).rejects.toMatchObject({ statusCode: 404 });
     });
 
-    it('rejects a second booking for an already-booked date', async () => {
+    it('allows a different time to be booked on the same date', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user1 = await createTestUser();
+      const user2 = await createTestUser();
+
+      await bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user1._id);
+      const second = await bookingService.bookSession(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '14:00' },
+        user2._id,
+      );
+
+      expect(second.time).toBe('14:00');
+      const updatedProduct = await BookingProduct.findById(product._id);
+      expect(updatedProduct!.availableDates[0].bookedTimes.sort()).toEqual(['10:00', '14:00']);
+    });
+
+    it('rejects double-booking the same date and time slot', async () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const user1 = await createTestUser();
@@ -174,7 +205,7 @@ describe('booking.service', () => {
       await bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user1._id);
 
       await expect(
-        bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '14:00' }, user2._id),
+        bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user2._id),
       ).rejects.toMatchObject({ statusCode: 409 });
     });
 
