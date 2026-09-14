@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../../../shared/middleware/authenticate';
+import { optionalAuthenticate } from '../../../shared/middleware/optionalAuthenticate';
 import { authorize } from '../../../shared/middleware/authorize';
 import { validate } from '../../../shared/middleware/validate';
 import {
@@ -9,40 +10,48 @@ import {
   caseIdSchema,
   caseSpecialtyParamsSchema,
 } from '../schema/cases.schema';
+import { updateCaseBankOverviewSchema } from '../schema/caseBankOverview.schema';
 import * as casesController from '../controller/cases.controller';
+import * as caseBankOverviewController from '../controller/caseBankOverview.controller';
 import { uploadCaseImage, uploadCaseFiles } from '../upload/cases.upload';
 import { parseCaseCreateMultipart } from '../middleware/parseCaseCreateMultipart';
 
 const router = Router();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public / authenticated user routes
-// Any logged-in user can browse published cases.
+// Public routes — the first FREE_CASE_PREVIEW_LIMIT cases are visible to
+// anyone, logged in or not, as a sample. optionalAuthenticate lets a valid
+// token unlock full access for subscribers/admins while never blocking an
+// anonymous request.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Specialty filter options — used to populate filter dropdowns on the frontend
-router.get('/specialties', authenticate, casesController.getPublishedSpecialties);
+router.get('/specialties', optionalAuthenticate, casesController.getPublishedSpecialties);
 
 // Paginated published case list with optional specialty/difficulty/search filters
 router.get(
   '/',
-  authenticate,
+  optionalAuthenticate,
   validate(caseFilterSchema, 'query'),
   casesController.getPublishedCases,
 );
 
 router.get(
   '/specialty/:specialty',
-  authenticate,
+  optionalAuthenticate,
   validate(caseSpecialtyParamsSchema, 'params'),
   validate(caseFilterSchema, 'query'),
   casesController.getCasesBySpecialty,
 );
 
+// Case bank product overview (title/description/image) — static path, must
+// come before /:id so "overview" is never captured as a case ID.
+router.get('/overview', caseBankOverviewController.getCaseBankOverview);
+
 // Full published case detail — all sections
 router.get(
   '/:id',
-  authenticate,
+  optionalAuthenticate,
   validate(caseIdSchema, 'params'),
   casesController.getPublishedCaseById,
 );
@@ -58,6 +67,28 @@ router.get(
   authorize('admin'),
   validate(caseFilterSchema, 'query'),
   casesController.getAllCasesAdmin,
+);
+
+// Case bank product overview — admin editor (static path before /admin/:id)
+router.get(
+  '/admin/overview',
+  authenticate,
+  authorize('admin'),
+  caseBankOverviewController.getCaseBankOverview,
+);
+router.patch(
+  '/admin/overview',
+  authenticate,
+  authorize('admin'),
+  validate(updateCaseBankOverviewSchema),
+  caseBankOverviewController.updateCaseBankOverview,
+);
+router.patch(
+  '/admin/overview/image',
+  authenticate,
+  authorize('admin'),
+  uploadCaseImage.single('image'),
+  caseBankOverviewController.updateCaseBankOverviewImage,
 );
 
 // Admin full detail view — drafts included

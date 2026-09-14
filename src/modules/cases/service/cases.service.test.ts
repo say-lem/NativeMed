@@ -100,6 +100,30 @@ describe('cases.service', () => {
       const found = await casesService.getPublishedCaseById(firstCase!._id.toString(), userId, 'user');
       expect(found.title).toBe('Case 1');
     });
+
+    it('anonymous visitors (no userId/role) only see the first 5 cases, same as an unsubscribed user', async () => {
+      await seedSixPublishedCases();
+
+      const result = await casesService.getPublishedCases(filterParams);
+      expect(result.total).toBe(5);
+    });
+
+    it('anonymous visitors can view a free preview case by id', async () => {
+      await seedSixPublishedCases();
+      const firstCase = await MockCase.findOne({ stationNumber: 1 });
+
+      const found = await casesService.getPublishedCaseById(firstCase!._id.toString());
+      expect(found.title).toBe('Case 1');
+    });
+
+    it('anonymous visitors get 403 on a non-preview case', async () => {
+      await seedSixPublishedCases();
+      const sixthCase = await MockCase.findOne({ stationNumber: 6 });
+
+      await expect(
+        casesService.getPublishedCaseById(sixthCase!._id.toString()),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    });
   });
 
   describe('getPublishedCaseById', () => {
