@@ -524,6 +524,7 @@ GET /api/v1/cases/overview
     "_id": "6659a1f2b3c4d5e6f7a8b9c0",
     "title": "Case Bank Access",
     "description": "Unlimited access to all mock clinical cases.",
+    "detailedDescription": "A much longer write-up of everything the case bank includes — shown on the case bank's own product page.",
     "imageUrl": "https://res.cloudinary.com/ddv2ukheu/image/upload/v.../overview.jpg",
     "createdAt": "2024-01-15T10:30:00.000Z",
     "updatedAt": "2024-01-15T10:30:00.000Z"
@@ -531,7 +532,7 @@ GET /api/v1/cases/overview
 }
 ```
 
-`title`/`description` are `"Case Bank Access"` / `"Unlimited access to all mock clinical cases."` by default until an admin edits them. `imageUrl` is absent until an admin uploads one.
+`title`/`description` are `"Case Bank Access"` / `"Unlimited access to all mock clinical cases."` by default until an admin edits them. `detailedDescription` is absent until an admin sets it — it's a longer-form write-up for the case bank's own page, distinct from the short `description` used in the catalog listing (the catalog does **not** include `detailedDescription`, same as courses). `imageUrl` is absent until an admin uploads one.
 
 ---
 
@@ -559,10 +560,14 @@ Content-Type: application/json
 ```
 
 ```json
-{ "title": "MRCGP Case Bank", "description": "Practice with real exam-style clinical stations." }
+{
+  "title": "MRCGP Case Bank",
+  "description": "Practice with real exam-style clinical stations.",
+  "detailedDescription": "A much longer write-up of everything the case bank includes."
+}
 ```
 
-At least one of `title`/`description` is required; both are optional (send only what's changing).
+At least one of `title`/`description`/`detailedDescription` is required; all are optional (send only what's changing).
 
 **Replace the cover image:**
 
