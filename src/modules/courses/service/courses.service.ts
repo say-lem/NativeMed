@@ -237,7 +237,7 @@ export const getCourseByIdAdmin = async (courseId: string) => {
 
 /** Public course fields returned from list/detail endpoints (prices in GBP). */
 const publicCourseFields =
-  'title description pricing thumbnailUrl telegramChannel whatsappChannel isPublished paymentsPaused createdAt updatedAt';
+  'title description detailedDescription pricing thumbnailUrl telegramChannel whatsappChannel isPublished paymentsPaused createdAt updatedAt';
 
 export const getAllPublished = async () => {
   return Course.find({ isPublished: true })
