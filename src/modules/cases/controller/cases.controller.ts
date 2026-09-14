@@ -11,18 +11,18 @@ import { CaseFilterInput, caseFilterSchema } from '../schema/cases.schema';
 
 export const getPublishedCases = asyncHandler(async (req: AuthRequest, res: Response) => {
   const params = (res.locals.query ?? req.query) as CaseFilterInput;
-  const result = await casesService.getPublishedCases(params, req.user!._id, req.user!.role);
+  const result = await casesService.getPublishedCases(params, req.user?._id, req.user?.role);
   return ApiResponse.success(res, 'Cases fetched', result);
 });
 
 export const getPublishedCaseById = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = (res.locals.params ?? req.params) as { id: string };
-  const mockCase = await casesService.getPublishedCaseById(id, req.user!._id, req.user!.role);
+  const mockCase = await casesService.getPublishedCaseById(id, req.user?._id, req.user?.role);
   return ApiResponse.success(res, 'Case fetched', mockCase);
 });
 
 export const getPublishedSpecialties = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const specialties = await casesService.getPublishedSpecialties(req.user!._id, req.user!.role);
+  const specialties = await casesService.getPublishedSpecialties(req.user?._id, req.user?.role);
   return ApiResponse.success(res, 'Specialties fetched', specialties);
 });
 
@@ -33,8 +33,8 @@ export const getCasesBySpecialty = asyncHandler(
     const result = await casesService.getCasesBySpecialty(
       specialty,
       params,
-      req.user!._id,
-      req.user!.role,
+      req.user?._id,
+      req.user?.role,
     );
     return ApiResponse.success(res, 'Cases fetched successfully', result);
   },

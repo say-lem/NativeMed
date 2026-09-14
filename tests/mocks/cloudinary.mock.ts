@@ -26,6 +26,7 @@ export const CloudinaryFolders = {
   CASE_STATION_IMAGES: 'native-med/cases/station-images',
   FREE_PRODUCT_PDFS: 'native-med/free-products/pdfs',
   FREE_PRODUCT_COVERS: 'native-med/free-products/covers',
+  CASE_BANK_OVERVIEW: 'native-med/case-bank/overview',
 };
 
 export default cloudinaryMock;

@@ -1,4 +1,5 @@
 import * as coursesService from '../../courses/service/courses.service';
+import * as caseBankOverviewService from '../../cases/service/caseBankOverview.service';
 import { BookingProduct } from '../../booking/model/booking.model';
 import { MockCase } from '../../cases/model/cases.model';
 import { CASE_BANK_PLAN } from '../../subscriptions/constants/plans';
@@ -10,12 +11,13 @@ import { CASE_BANK_PLAN } from '../../subscriptions/constants/plans';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const getAllProducts = async () => {
-  const [courses, bookingProducts, caseCount] = await Promise.all([
+  const [courses, bookingProducts, caseCount, caseBankOverview] = await Promise.all([
     coursesService.getAllPublished(),
     BookingProduct.find({ isPublished: true })
       .select('title description price')
       .sort({ createdAt: -1 }),
     MockCase.countDocuments({ isPublished: true }),
+    caseBankOverviewService.getCaseBankOverview(),
   ]);
 
   const courseProducts = courses.map((course) => ({
@@ -35,12 +37,16 @@ export const getAllProducts = async () => {
     price: product.price,
   }));
 
-  // Not a persisted document — the case bank is a single site-wide offering,
-  // so it carries no _id. caseCount is live, same as the homepage's caseNumber.
+  // Not a persisted document of its own — the case bank is a single site-wide
+  // offering, so it carries no _id. title/description/imageUrl come from the
+  // admin-editable CaseBankOverview (see cases/caseBankOverview.service.ts);
+  // prices still come from CASE_BANK_PLAN (Stripe), and caseCount is live,
+  // same as the homepage's caseNumber.
   const caseBankProduct = {
     type: 'case_bank' as const,
-    title: CASE_BANK_PLAN.name,
-    description: CASE_BANK_PLAN.description,
+    title: caseBankOverview.title,
+    description: caseBankOverview.description,
+    imageUrl: caseBankOverview.imageUrl ?? null,
     prices: CASE_BANK_PLAN.prices,
     caseCount,
   };

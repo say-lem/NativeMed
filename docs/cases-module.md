@@ -16,6 +16,8 @@
    - [GET /cases](#get-cases)
    - [GET /cases/specialty/:specialty](#get-casesspecialtyspecialty)
    - [GET /cases/:id](#get-casesid)
+   - [GET /cases/overview](#get-casesoverview)
+   - [GET/PATCH /cases/admin/overview](#getpatch-casesadminoverview)
    - [GET /cases/admin/all](#get-casesadminall)
    - [GET /cases/admin/:id](#get-casesadminid)
    - [POST /cases](#post-cases)
@@ -35,7 +37,9 @@
 The Cases module manages mock clinical OSCE cases. Cases have two visibility states:
 
 - **Draft** (`isPublished: false`) — visible to admins only
-- **Published** (`isPublished: true`) — visible to all authenticated users
+- **Published** (`isPublished: true`) — visible to everyone, but the first `FREE_CASE_PREVIEW_LIMIT` (currently 5) published cases by station order are the only ones visible **without** a Case Bank subscription. This free preview is now public — no login required. Beyond the preview, a case requires a logged-in user with either an active Case Bank subscription or the `admin` role.
+
+Also see the [case bank product overview](#getpatch-casesadminoverview) — an admin-editable title/description/image describing the case bank as a purchasable product, surfaced on the [catalog endpoint](./catalog-module.md).
 
 Responses are consistent across all endpoints:
 
@@ -51,15 +55,19 @@ Responses are consistent across all endpoints:
 
 ## Authentication
 
-All case endpoints require a valid JWT Bearer token obtained from `POST /api/v1/auth/login`.
-
-Send the token on every request:
+The browsing endpoints (`GET /cases`, `/cases/specialty/:specialty`, `/cases/specialties`, `/cases/:id`, `/cases/overview`) accept an **optional** Bearer token:
 
 ```
 Authorization: Bearer <accessToken>
 ```
 
-Some endpoints are **admin-only** — the authenticated user must have `role: "admin"`. Accessing an admin endpoint as a regular user returns `403 Forbidden`.
+- **No token / anonymous** — you get the free preview only (the first `FREE_CASE_PREVIEW_LIMIT` published cases).
+- **Valid token, no Case Bank subscription** — same free preview as anonymous.
+- **Valid token, active Case Bank subscription (or `role: "admin"`)** — full access to every published case.
+
+An invalid or expired token on these routes is treated the same as no token — you fall back to the free preview rather than getting a `401`.
+
+Admin write endpoints (create/update/delete/publish, and the admin overview editor) still **require** a valid token with `role: "admin"`. Accessing an admin endpoint as a regular user or anonymously returns `403`/`401`.
 
 ---
 
@@ -298,7 +306,7 @@ All list endpoints return a consistent pagination envelope:
 
 Returns all specialties that have at least one **published** case, with the case count per specialty. Use this to build the specialty filter dropdown.
 
-**Auth:** Required (any user)
+**Auth:** Optional (public free preview; full access needs a Case Bank subscription or admin role)
 
 **Request:**
 
@@ -336,7 +344,7 @@ Authorization: Bearer <token>
 
 Paginated list of **published** cases. Returns the lightweight projection.
 
-**Auth:** Required (any user)
+**Auth:** Optional (public free preview; full access needs a Case Bank subscription or admin role)
 
 **Request:**
 
@@ -385,7 +393,7 @@ Authorization: Bearer <token>
 
 Paginated list of published cases filtered to a specific specialty. Equivalent to `GET /cases?specialty=X` but uses a URL path param.
 
-**Auth:** Required (any user)
+**Auth:** Optional (public free preview; full access needs a Case Bank subscription or admin role)
 
 **Request:**
 
@@ -408,7 +416,7 @@ GET /api/v1/cases/specialty/Elderly%20Medicine%2F%20Palliative
 
 Full detail for a single **published** case. Returns all fields including `patientStory`, `markingScheme`, etc.
 
-**Auth:** Required (any user)
+**Auth:** Optional (public free preview; full access needs a Case Bank subscription or admin role)
 
 **Request:**
 
@@ -491,6 +499,90 @@ Authorization: Bearer <token>
 | Status | Condition                              |
 |--------|----------------------------------------|
 | `404`  | Case not found or case is not published |
+
+---
+
+### GET /cases/overview
+
+The case bank as a *product* — title, description, and an optional cover image, set by the admin. Distinct from any individual `MockCase`. This is also what feeds the `case_bank` entry on the [catalog endpoint](./catalog-module.md#get-apiv1products-public).
+
+**Auth:** Public — no token required.
+
+**Request:**
+
+```
+GET /api/v1/cases/overview
+```
+
+**Response `200`:**
+
+```json
+{
+  "success": true,
+  "message": "Case bank overview fetched",
+  "data": {
+    "_id": "6659a1f2b3c4d5e6f7a8b9c0",
+    "title": "Case Bank Access",
+    "description": "Unlimited access to all mock clinical cases.",
+    "imageUrl": "https://res.cloudinary.com/ddv2ukheu/image/upload/v.../overview.jpg",
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+`title`/`description` are `"Case Bank Access"` / `"Unlimited access to all mock clinical cases."` by default until an admin edits them. `imageUrl` is absent until an admin uploads one.
+
+---
+
+### GET/PATCH /cases/admin/overview
+
+Admin editor for the case bank overview above. It's a singleton — there's always exactly one, created automatically on first read/write.
+
+**Auth:** Required (admin)
+
+**Fetch current values:**
+
+```
+GET /api/v1/cases/admin/overview
+Authorization: Bearer <token>
+```
+
+Same response shape as the public `GET /cases/overview`.
+
+**Update title/description:**
+
+```
+PATCH /api/v1/cases/admin/overview
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+```json
+{ "title": "MRCGP Case Bank", "description": "Practice with real exam-style clinical stations." }
+```
+
+At least one of `title`/`description` is required; both are optional (send only what's changing).
+
+**Replace the cover image:**
+
+```
+PATCH /api/v1/cases/admin/overview/image
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+| Field   | Type | Required | Notes                       |
+|---------|------|----------|------------------------------|
+| `image` | file | Yes      | jpg, png, or webp. Max 5 MB |
+
+Resized to 800×450 (16:9) on the server. The previous image (if any) is deleted from Cloudinary automatically.
+
+**Response `200`:**
+
+```json
+{ "success": true, "message": "Case bank overview image updated", "data": { "imageUrl": "https://res.cloudinary.com/ddv2ukheu/image/upload/v.../overview.jpg" } }
+```
 
 ---
 
