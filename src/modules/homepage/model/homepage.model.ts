@@ -28,6 +28,10 @@ export interface IHomepageSettings extends Document {
   termsAndConditionsUpdatedAt?: Date;
   legalDisclaimer: string;
   legalDisclaimerUpdatedAt?: Date;
+  privacyPolicy: string;
+  privacyPolicyUpdatedAt?: Date;
+  founderBio: string;
+  founderBioUpdatedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -60,11 +64,15 @@ const homepageSettingsSchema = new Schema<IHomepageSettings>(
     faqs:              { type: [faqSchema], default: [] },
     // Tracked with its own timestamp — the document's own updatedAt also
     // shifts on stat/youtube-link edits, so it can't tell "when were terms
-    // last edited" on its own. Same reasoning for legalDisclaimer below.
+    // last edited" on its own. Same reasoning for legalDisclaimer/privacyPolicy/founderBio below.
     termsAndConditions:          { type: String, trim: true, default: '' },
     termsAndConditionsUpdatedAt: { type: Date },
     legalDisclaimer:             { type: String, trim: true, default: '' },
     legalDisclaimerUpdatedAt:    { type: Date },
+    privacyPolicy:               { type: String, trim: true, default: '' },
+    privacyPolicyUpdatedAt:      { type: Date },
+    founderBio:                  { type: String, trim: true, default: '' },
+    founderBioUpdatedAt:         { type: Date },
   },
   { timestamps: true },
 );

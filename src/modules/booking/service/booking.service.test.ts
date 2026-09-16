@@ -1,11 +1,14 @@
+jest.mock('../../../config/stripe', () => require('../../../../tests/mocks/stripe.mock'));
 jest.mock('../email/booking.email.service', () => ({
   sendBookingNotificationEmail: jest.fn().mockResolvedValue(undefined),
 }));
 
 import { Types } from 'mongoose';
+import type Stripe from 'stripe';
 import * as bookingService from './booking.service';
 import { BookingProduct, SessionBooking } from '../model/booking.model';
 import { sendBookingNotificationEmail } from '../email/booking.email.service';
+import { stripeMock } from '../../../../tests/mocks/stripe.mock';
 import { createTestUser, objectId } from '../../../../tests/helpers/factories';
 
 const mockedSendBookingNotificationEmail = sendBookingNotificationEmail as jest.MockedFunction<
@@ -19,9 +22,41 @@ const baseProductInput = {
   availableTimes: ['10:00', '14:00'],
 };
 
+// Simulates what payments.service.ts's webhook handler passes in — only the
+// fields booking.service.ts actually reads.
+const fakeCheckoutSession = (overrides: Record<string, unknown> = {}): Stripe.Checkout.Session =>
+  ({
+    id: 'cs_fake_123',
+    mode: 'payment',
+    payment_intent: 'pi_fake_123',
+    amount_total: 5000,
+    currency: 'gbp',
+    metadata: {},
+    ...overrides,
+  }) as unknown as Stripe.Checkout.Session;
+
+// End-to-end helper: starts checkout, then simulates the webhook confirming
+// payment, returning the confirmed booking.
+const bookAndConfirm = async (productId: string, input: { date: Date; time: string }, userId: Types.ObjectId) => {
+  const checkout = await bookingService.bookSession(productId, input, userId);
+  const confirmed = await bookingService.confirmBookingPayment(
+    fakeCheckoutSession({ metadata: { bookingId: checkout.bookingId.toString() } }),
+  );
+  return { checkout, confirmed: confirmed! };
+};
+
+let checkoutSessionCounter = 0;
+
 describe('booking.service', () => {
   beforeEach(() => {
     mockedSendBookingNotificationEmail.mockClear();
+    stripeMock.checkout.sessions.create.mockReset();
+    checkoutSessionCounter = 0;
+    stripeMock.checkout.sessions.create.mockImplementation(async () => {
+      checkoutSessionCounter += 1;
+      const id = `cs_fake_${checkoutSessionCounter}`;
+      return { id, url: `https://checkout.stripe.com/${id}` };
+    });
   });
 
   describe('createBookingProduct', () => {
@@ -72,8 +107,8 @@ describe('booking.service', () => {
       ).rejects.toMatchObject({ statusCode: 404 });
     });
 
-    it('rejects removing a date that already has a booking', async () => {
-      const product = await bookingService.createBookingProduct({ ...baseProductInput, isPublished: true }, objectId());
+    it('rejects removing a date that already has a pending (unpaid) checkout on it', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       const withDate = await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const dateId = withDate.availableDates[0]._id.toString();
       const user = await createTestUser();
@@ -96,7 +131,7 @@ describe('booking.service', () => {
       expect(result.total).toBe(1);
     });
 
-    it('keeps a date visible with the booked time marked unavailable, not removed', async () => {
+    it('keeps a date visible with the held time marked unavailable as soon as checkout starts', async () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const user = await createTestUser();
@@ -110,7 +145,7 @@ describe('booking.service', () => {
       ]);
     });
 
-    it('hides a date only once every time slot on it has been booked', async () => {
+    it('hides a date only once every time slot on it is held/booked', async () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-06') });
@@ -133,33 +168,52 @@ describe('booking.service', () => {
     });
   });
 
-  describe('bookSession', () => {
-    it('books an available date and time, creates a booking record, and emails the admin', async () => {
+  describe('bookSession (starts checkout, does not confirm the booking)', () => {
+    it('reserves the slot and creates a pending booking without emailing the admin yet', async () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const user = await createTestUser({ fullName: 'Grace Hopper', email: 'grace@example.com' });
 
-      const booking = await bookingService.bookSession(
+      const checkout = await bookingService.bookSession(
         product._id.toString(),
         { date: new Date('2026-03-05'), time: '10:00' },
         user._id,
       );
 
-      expect(booking.time).toBe('10:00');
-      expect(booking.userId.toString()).toBe(user._id.toString());
-      expect(await SessionBooking.countDocuments()).toBe(1);
+      expect(checkout).toEqual({
+        bookingId: expect.anything(),
+        sessionId: expect.stringMatching(/^cs_fake_\d+$/),
+        url: expect.stringMatching(/^https:\/\/checkout\.stripe\.com\/cs_fake_\d+$/),
+      });
+
+      const booking = await SessionBooking.findById(checkout.bookingId);
+      expect(booking!.status).toBe('pending');
+      expect(booking!.stripeCheckoutSessionId).toBe(checkout.sessionId);
 
       const updatedProduct = await BookingProduct.findById(product._id);
       expect(updatedProduct!.availableDates[0].bookedTimes).toEqual(['10:00']);
 
-      expect(mockedSendBookingNotificationEmail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          productTitle: baseProductInput.title,
-          time: '10:00',
-          bookedByName: 'Grace Hopper',
-          bookedByEmail: 'grace@example.com',
-        }),
-      );
+      expect(mockedSendBookingNotificationEmail).not.toHaveBeenCalled();
+
+      const callArgs = stripeMock.checkout.sessions.create.mock.calls[0][0];
+      expect(callArgs.mode).toBe('payment');
+      expect(callArgs.line_items[0].price_data.unit_amount).toBe(5000);
+      expect(callArgs.metadata).toMatchObject({ type: 'booking', productId: product._id.toString() });
+    });
+
+    it('rolls back the reservation if Stripe checkout creation fails', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+      stripeMock.checkout.sessions.create.mockRejectedValueOnce(new Error('Stripe is down'));
+
+      await expect(
+        bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user._id),
+      ).rejects.toThrow('Stripe is down');
+
+      const updatedProduct = await BookingProduct.findById(product._id);
+      expect(updatedProduct!.availableDates[0].bookedTimes).toEqual([]);
+      expect(await SessionBooking.countDocuments()).toBe(0);
     });
 
     it('rejects a time not offered by the product', async () => {
@@ -170,6 +224,7 @@ describe('booking.service', () => {
       await expect(
         bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '23:00' }, user._id),
       ).rejects.toMatchObject({ statusCode: 400 });
+      expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
     });
 
     it('rejects booking a date that was never made available', async () => {
@@ -181,7 +236,7 @@ describe('booking.service', () => {
       ).rejects.toMatchObject({ statusCode: 404 });
     });
 
-    it('allows a different time to be booked on the same date', async () => {
+    it('allows a different time to be held on the same date', async () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const user1 = await createTestUser();
@@ -194,12 +249,12 @@ describe('booking.service', () => {
         user2._id,
       );
 
-      expect(second.time).toBe('14:00');
+      expect(second.sessionId).toEqual(expect.stringMatching(/^cs_fake_\d+$/));
       const updatedProduct = await BookingProduct.findById(product._id);
       expect(updatedProduct!.availableDates[0].bookedTimes.sort()).toEqual(['10:00', '14:00']);
     });
 
-    it('rejects double-booking the same date and time slot', async () => {
+    it('rejects starting a second checkout for the same date and time slot', async () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const user1 = await createTestUser();
@@ -222,6 +277,131 @@ describe('booking.service', () => {
         bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user._id),
       ).rejects.toMatchObject({ statusCode: 404 });
     });
+
+    it('rejects a product with no valid price', async () => {
+      const product = await bookingService.createBookingProduct({ ...baseProductInput, price: 0 }, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+
+      await expect(
+        bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user._id),
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
+  });
+
+  describe('confirmBookingPayment', () => {
+    it('marks the booking confirmed and emails the admin', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser({ fullName: 'Grace Hopper', email: 'grace@example.com' });
+
+      const { confirmed } = await bookAndConfirm(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user._id,
+      );
+
+      expect(confirmed.status).toBe('confirmed');
+      expect(mockedSendBookingNotificationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          productTitle: baseProductInput.title,
+          time: '10:00',
+          bookedByName: 'Grace Hopper',
+          bookedByEmail: 'grace@example.com',
+        }),
+      );
+    });
+
+    it('does not release the slot or re-email on a duplicate webhook delivery', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+
+      const { checkout } = await bookAndConfirm(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user._id,
+      );
+      mockedSendBookingNotificationEmail.mockClear();
+
+      await bookingService.confirmBookingPayment(
+        fakeCheckoutSession({ metadata: { bookingId: checkout.bookingId.toString() } }),
+      );
+
+      expect(mockedSendBookingNotificationEmail).not.toHaveBeenCalled();
+      const updatedProduct = await BookingProduct.findById(product._id);
+      expect(updatedProduct!.availableDates[0].bookedTimes).toEqual(['10:00']);
+    });
+
+    it('returns null when the session has no bookingId metadata', async () => {
+      const result = await bookingService.confirmBookingPayment(fakeCheckoutSession({ metadata: {} }));
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('releasePendingBooking', () => {
+    it('frees the slot and marks the booking cancelled', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+
+      const checkout = await bookingService.bookSession(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user._id,
+      );
+
+      await bookingService.releasePendingBooking(
+        fakeCheckoutSession({ metadata: { bookingId: checkout.bookingId.toString() } }),
+      );
+
+      const booking = await SessionBooking.findById(checkout.bookingId);
+      expect(booking!.status).toBe('cancelled');
+
+      const updatedProduct = await BookingProduct.findById(product._id);
+      expect(updatedProduct!.availableDates[0].bookedTimes).toEqual([]);
+    });
+
+    it('lets a new checkout claim the slot after it is released', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user1 = await createTestUser();
+      const user2 = await createTestUser();
+
+      const checkout = await bookingService.bookSession(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user1._id,
+      );
+      await bookingService.releasePendingBooking(
+        fakeCheckoutSession({ metadata: { bookingId: checkout.bookingId.toString() } }),
+      );
+
+      await expect(
+        bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user2._id),
+      ).resolves.toMatchObject({ sessionId: expect.stringMatching(/^cs_fake_\d+$/) });
+    });
+
+    it('does nothing for an already-confirmed booking', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+
+      const { checkout } = await bookAndConfirm(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user._id,
+      );
+
+      await bookingService.releasePendingBooking(
+        fakeCheckoutSession({ metadata: { bookingId: checkout.bookingId.toString() } }),
+      );
+
+      const booking = await SessionBooking.findById(checkout.bookingId);
+      expect(booking!.status).toBe('confirmed');
+      const updatedProduct = await BookingProduct.findById(product._id);
+      expect(updatedProduct!.availableDates[0].bookedTimes).toEqual(['10:00']);
+    });
   });
 
   describe('deleteBookingProduct', () => {
@@ -229,7 +409,7 @@ describe('booking.service', () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const user = await createTestUser();
-      await bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user._id);
+      await bookAndConfirm(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user._id);
 
       await bookingService.deleteBookingProduct(product._id.toString());
 
@@ -245,7 +425,7 @@ describe('booking.service', () => {
   });
 
   describe('getAllBookings (admin)', () => {
-    it('lists bookings across all products', async () => {
+    it('lists bookings across all products, including pending ones', async () => {
       const product = await bookingService.createBookingProduct(baseProductInput, objectId());
       await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
       const user = await createTestUser();
@@ -253,6 +433,7 @@ describe('booking.service', () => {
 
       const result = await bookingService.getAllBookings();
       expect(result.total).toBe(1);
+      expect(result.items[0].status).toBe('pending');
     });
   });
 

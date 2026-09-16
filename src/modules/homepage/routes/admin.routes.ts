@@ -10,6 +10,8 @@ import {
   updateFaqSchema,
   updateTermsAndConditionsSchema,
   updateLegalDisclaimerSchema,
+  updatePrivacyPolicySchema,
+  updateFounderBioSchema,
 } from '../schema/homepage.schema';
 import * as homepageController from '../controller/homepage.controller';
 
@@ -36,5 +38,13 @@ router.patch('/terms', validate(updateTermsAndConditionsSchema), homepageControl
 // Legal disclaimer — own endpoint, same create-on-first-PATCH pattern as terms.
 router.get('/legal-disclaimer', homepageController.getLegalDisclaimer);
 router.patch('/legal-disclaimer', validate(updateLegalDisclaimerSchema), homepageController.updateLegalDisclaimer);
+
+// Privacy policy — own endpoint, same create-on-first-PATCH pattern as terms.
+router.get('/privacy-policy', homepageController.getPrivacyPolicy);
+router.patch('/privacy-policy', validate(updatePrivacyPolicySchema), homepageController.updatePrivacyPolicy);
+
+// Founder's bio — own endpoint, same create-on-first-PATCH pattern as terms.
+router.get('/founder-bio', homepageController.getFounderBio);
+router.patch('/founder-bio', validate(updateFounderBioSchema), homepageController.updateFounderBio);
 
 export default router;

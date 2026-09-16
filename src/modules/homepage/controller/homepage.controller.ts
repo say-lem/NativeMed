@@ -9,6 +9,8 @@ import {
   UpdateFaqInput,
   UpdateTermsAndConditionsInput,
   UpdateLegalDisclaimerInput,
+  UpdatePrivacyPolicyInput,
+  UpdateFounderBioInput,
 } from '../schema/homepage.schema';
 import * as homepageService from '../service/homepage.service';
 
@@ -32,6 +34,16 @@ export const getTermsAndConditions = asyncHandler(async (_req: Request, res: Res
 export const getLegalDisclaimer = asyncHandler(async (_req: Request, res: Response) => {
   const data = await homepageService.getLegalDisclaimer();
   return ApiResponse.success(res, 'Legal disclaimer fetched', data);
+});
+
+export const getPrivacyPolicy = asyncHandler(async (_req: Request, res: Response) => {
+  const data = await homepageService.getPrivacyPolicy();
+  return ApiResponse.success(res, 'Privacy policy fetched', data);
+});
+
+export const getFounderBio = asyncHandler(async (_req: Request, res: Response) => {
+  const data = await homepageService.getFounderBio();
+  return ApiResponse.success(res, "Founder's bio fetched", data);
 });
 
 export const getFaqs = asyncHandler(async (_req: Request, res: Response) => {
@@ -93,4 +105,16 @@ export const updateLegalDisclaimer = asyncHandler(async (req: Request, res: Resp
   const input = req.body as UpdateLegalDisclaimerInput;
   const data = await homepageService.updateLegalDisclaimer(input);
   return ApiResponse.success(res, 'Legal disclaimer updated', data);
+});
+
+export const updatePrivacyPolicy = asyncHandler(async (req: Request, res: Response) => {
+  const input = req.body as UpdatePrivacyPolicyInput;
+  const data = await homepageService.updatePrivacyPolicy(input);
+  return ApiResponse.success(res, 'Privacy policy updated', data);
+});
+
+export const updateFounderBio = asyncHandler(async (req: Request, res: Response) => {
+  const input = req.body as UpdateFounderBioInput;
+  const data = await homepageService.updateFounderBio(input);
+  return ApiResponse.success(res, "Founder's bio updated", data);
 });

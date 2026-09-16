@@ -6,6 +6,7 @@ import * as paymentsService from './payments.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
 import { Payment } from '../model/payments.model';
 import { Subscription } from '../../subscriptions/model/subscriptions.model';
+import { BookingProduct, SessionBooking } from '../../booking/model/booking.model';
 import { stripeMock } from '../../../../tests/mocks/stripe.mock';
 import { createTestUser, createTestCourse, objectId } from '../../../../tests/helpers/factories';
 
@@ -331,6 +332,89 @@ describe('payments.service', () => {
       const sub = await Subscription.findOne({ stripeSubscriptionId: 'sub_fake_123' });
       expect(sub!.status).toBe('cancelled');
       expect(await enrollmentsService.isEnrolled(user._id, course._id.toString())).toBe(false);
+    });
+
+    it('checkout.session.completed (mode: payment, booking) confirms the booking and records a Payment', async () => {
+      const admin = await createTestUser({ role: 'admin' });
+      const user = await createTestUser();
+      const product = await BookingProduct.create({
+        title: 'Career Coaching',
+        description: 'A one-on-one session.',
+        price: 50,
+        availableTimes: ['10:00'],
+        availableDates: [{ date: new Date('2026-03-05'), bookedTimes: ['10:00'] }],
+        createdBy: admin._id,
+      });
+      const booking = await SessionBooking.create({
+        productId: product._id,
+        userId: user._id,
+        date: new Date('2026-03-05'),
+        time: '10:00',
+        status: 'pending',
+        stripeCheckoutSessionId: 'cs_fake_booking_1',
+      });
+
+      await paymentsService.handleWebhookEvent({
+        type: 'checkout.session.completed',
+        created: nowSeconds(),
+        data: {
+          object: {
+            id: 'cs_fake_booking_1',
+            mode: 'payment',
+            amount_total: 5000,
+            currency: 'gbp',
+            payment_intent: 'pi_fake_booking_1',
+            metadata: { type: 'booking', bookingId: booking._id.toString() },
+          },
+        },
+      } as unknown as Stripe.Event);
+
+      expect((await SessionBooking.findById(booking._id))!.status).toBe('confirmed');
+
+      const payment = await Payment.findOne({ stripeCheckoutSessionId: 'cs_fake_booking_1' });
+      expect(payment).toMatchObject({
+        itemType: 'booking',
+        status: 'succeeded',
+        amount: 5000,
+        stripePaymentIntentId: 'pi_fake_booking_1',
+      });
+      expect(payment!.bookingId!.toString()).toBe(booking._id.toString());
+    });
+
+    it('checkout.session.expired (mode: payment, booking) releases the held slot', async () => {
+      const admin = await createTestUser({ role: 'admin' });
+      const user = await createTestUser();
+      const product = await BookingProduct.create({
+        title: 'Career Coaching',
+        description: 'A one-on-one session.',
+        price: 50,
+        availableTimes: ['10:00'],
+        availableDates: [{ date: new Date('2026-03-05'), bookedTimes: ['10:00'] }],
+        createdBy: admin._id,
+      });
+      const booking = await SessionBooking.create({
+        productId: product._id,
+        userId: user._id,
+        date: new Date('2026-03-05'),
+        time: '10:00',
+        status: 'pending',
+        stripeCheckoutSessionId: 'cs_fake_booking_2',
+      });
+
+      await paymentsService.handleWebhookEvent({
+        type: 'checkout.session.expired',
+        data: {
+          object: {
+            id: 'cs_fake_booking_2',
+            mode: 'payment',
+            metadata: { type: 'booking', bookingId: booking._id.toString() },
+          },
+        },
+      } as unknown as Stripe.Event);
+
+      expect((await SessionBooking.findById(booking._id))!.status).toBe('cancelled');
+      const updatedProduct = await BookingProduct.findById(product._id);
+      expect(updatedProduct!.availableDates[0].bookedTimes).toEqual([]);
     });
   });
 

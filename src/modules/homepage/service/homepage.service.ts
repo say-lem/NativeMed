@@ -9,6 +9,8 @@ import {
   UpdateFaqInput,
   UpdateTermsAndConditionsInput,
   UpdateLegalDisclaimerInput,
+  UpdatePrivacyPolicyInput,
+  UpdateFounderBioInput,
 } from '../schema/homepage.schema';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -182,5 +184,59 @@ export const updateLegalDisclaimer = async (input: UpdateLegalDisclaimerInput) =
   return {
     content: settings!.legalDisclaimer,
     updatedAt: settings!.legalDisclaimerUpdatedAt ?? null,
+  };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Privacy policy — own endpoint, same pattern/singleton as terms above.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const getPrivacyPolicy = async () => {
+  const settings = await getOrCreateSettings();
+  return {
+    content: settings.privacyPolicy,
+    updatedAt: settings.privacyPolicyUpdatedAt ?? null,
+  };
+};
+
+export const updatePrivacyPolicy = async (input: UpdatePrivacyPolicyInput) => {
+  const settings = await HomepageSettings.findOneAndUpdate(
+    {},
+    {
+      $set: { privacyPolicy: input.content, privacyPolicyUpdatedAt: new Date() },
+      $setOnInsert: {},
+    },
+    { returnDocument: 'after', upsert: true },
+  );
+  return {
+    content: settings!.privacyPolicy,
+    updatedAt: settings!.privacyPolicyUpdatedAt ?? null,
+  };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Founder's bio — own endpoint, same pattern/singleton as terms above.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const getFounderBio = async () => {
+  const settings = await getOrCreateSettings();
+  return {
+    content: settings.founderBio,
+    updatedAt: settings.founderBioUpdatedAt ?? null,
+  };
+};
+
+export const updateFounderBio = async (input: UpdateFounderBioInput) => {
+  const settings = await HomepageSettings.findOneAndUpdate(
+    {},
+    {
+      $set: { founderBio: input.content, founderBioUpdatedAt: new Date() },
+      $setOnInsert: {},
+    },
+    { returnDocument: 'after', upsert: true },
+  );
+  return {
+    content: settings!.founderBio,
+    updatedAt: settings!.founderBioUpdatedAt ?? null,
   };
 };

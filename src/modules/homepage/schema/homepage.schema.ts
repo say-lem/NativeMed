@@ -64,3 +64,15 @@ export const updateLegalDisclaimerSchema = z.object({
 });
 
 export type UpdateLegalDisclaimerInput = z.infer<typeof updateLegalDisclaimerSchema>;
+
+export const updatePrivacyPolicySchema = z.object({
+  content: z.string().trim().min(1, 'Content is required').max(20000),
+});
+
+export type UpdatePrivacyPolicyInput = z.infer<typeof updatePrivacyPolicySchema>;
+
+export const updateFounderBioSchema = z.object({
+  content: z.string().trim().min(1, 'Content is required').max(20000),
+});
+
+export type UpdateFounderBioInput = z.infer<typeof updateFounderBioSchema>;
