@@ -2,15 +2,17 @@ import { Types } from 'mongoose';
 import type Stripe from 'stripe';
 import { env } from '../../../config/env';
 import { stripe } from '../../../config/stripe';
+import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
 import { AppError } from '../../../shared/utils/appError';
 import { User } from '../../auth/model/auth.model';
-import { BookingProduct, ISessionBooking, SessionBooking } from '../model/booking.model';
-import { sendBookingNotificationEmail } from '../email/booking.email.service';
+import { BookingProduct, ISessionBooking, SessionBooking, SlotAvailabilityRequest } from '../model/booking.model';
+import { sendBookingNotificationEmail, sendSlotAvailabilityRequestEmail } from '../email/booking.email.service';
 import {
   CreateBookingProductInput,
   UpdateBookingProductInput,
   AddAvailableDateInput,
   BookSessionInput,
+  RequestSlotAvailabilityInput,
 } from '../schema/booking.schema';
 
 // Dates are compared by calendar day only — strip the time component so an
@@ -56,6 +58,40 @@ export const updateBookingProduct = async (productId: string, input: UpdateBooki
 
 export const setBookingProductPublished = async (productId: string, isPublished: boolean) => {
   return updateBookingProduct(productId, { isPublished });
+};
+
+// Destroy-then-upload, same ordering rationale as Course.updateCourseThumbnail —
+// if the new upload fails, the old image is already gone but no bad data has
+// been written.
+export const updateBookingProductImage = async (productId: string, file: Express.Multer.File) => {
+  const existing = await BookingProduct.findById(productId).select('+imagePublicId');
+  if (!existing) throw new AppError('Booking product not found', 404);
+
+  if (existing.imagePublicId) {
+    try {
+      await cloudinary.uploader.destroy(existing.imagePublicId, { resource_type: 'image' });
+    } catch (err) {
+      console.error(`⚠️  Could not delete old booking product image (${existing.imagePublicId}):`, err);
+    }
+  }
+
+  const result = await uploadBuffer(file.buffer, {
+    folder: CloudinaryFolders.BOOKING_IMAGES,
+    resource_type: 'image',
+    use_filename: false,
+    unique_filename: true,
+    overwrite: false,
+    transformation: [{ width: 800, height: 450, crop: 'fill', gravity: 'auto' }],
+  });
+
+  const updated = await BookingProduct.findByIdAndUpdate(
+    productId,
+    { imageUrl: result.secure_url, imagePublicId: result.public_id },
+    { new: true },
+  );
+
+  if (!updated) throw new AppError('Booking product not found', 404);
+  return updated;
 };
 
 export const deleteBookingProduct = async (productId: string): Promise<void> => {
@@ -116,6 +152,34 @@ export const getAllBookings = async (page = 1, limit = 20) => {
   return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
 };
 
+export const getAllSlotAvailabilityRequests = async (page = 1, limit = 20) => {
+  const [items, total] = await Promise.all([
+    SlotAvailabilityRequest.find()
+      .populate('productId', 'title')
+      .populate('userId', 'fullName email')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+    SlotAvailabilityRequest.countDocuments(),
+  ]);
+  return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+};
+
+export const resolveSlotAvailabilityRequest = async (requestId: string) => {
+  const request = await SlotAvailabilityRequest.findByIdAndUpdate(
+    requestId,
+    { status: 'resolved' },
+    { new: true },
+  );
+  if (!request) throw new AppError('Slot availability request not found', 404);
+  return request;
+};
+
+export const deleteSlotAvailabilityRequest = async (requestId: string): Promise<void> => {
+  const request = await SlotAvailabilityRequest.findByIdAndDelete(requestId);
+  if (!request) throw new AppError('Slot availability request not found', 404);
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Public — published products. Each date lists every one of the product's
 // availableTimes with an isAvailable flag, so the frontend can render the
@@ -123,6 +187,11 @@ export const getAllBookings = async (page = 1, limit = 20) => {
 // just shrinking the list. A date disappears entirely only once every time
 // on it has been booked (nothing left to offer, disabled or not).
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Same "is this (date, time) still bookable" logic as withOnlyAvailableDates
+// below, without the JSON round-trip — used to gate requestSlotAvailability().
+const hasAnyOpenSlot = (product: InstanceType<typeof BookingProduct>): boolean =>
+  product.availableDates.some((d) => product.availableTimes.some((t) => !d.bookedTimes.includes(t)));
 
 const withOnlyAvailableDates = (product: InstanceType<typeof BookingProduct>) => {
   const json = product.toJSON() as unknown as Record<string, unknown> & {
@@ -279,6 +348,44 @@ export const bookSession = async (
     await booking.deleteOne();
     throw err;
   }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// User — reach out about a session with no open slot. Only accepted when the
+// product genuinely has nothing bookable right now, so the data stays
+// meaningful and the endpoint can't be used as a generic contact form.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const requestSlotAvailability = async (
+  productId: string,
+  input: RequestSlotAvailabilityInput,
+  userId: Types.ObjectId,
+) => {
+  const product = await BookingProduct.findOne({ _id: productId, isPublished: true });
+  if (!product) throw new AppError('Booking product not found', 404);
+
+  if (hasAnyOpenSlot(product)) {
+    throw new AppError('This session currently has open slots — please book one directly instead', 400);
+  }
+
+  const request = await SlotAvailabilityRequest.create({
+    productId,
+    userId,
+    name: input.name,
+    email: input.email,
+    examSitting: input.examSitting,
+    preferredDates: input.preferredDates,
+  });
+
+  sendSlotAvailabilityRequestEmail({
+    productTitle: product.title,
+    name: input.name,
+    email: input.email,
+    examSitting: input.examSitting,
+    preferredDates: input.preferredDates,
+  }).catch((err) => console.error('Slot availability request email failed:', err));
+
+  return request;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import {
   UpdateBookingProductInput,
   AddAvailableDateInput,
   BookSessionInput,
+  RequestSlotAvailabilityInput,
 } from '../schema/booking.schema';
 import * as bookingService from '../service/booking.service';
 
@@ -46,6 +47,20 @@ export const getMyBookings = asyncHandler(async (req: AuthRequest, res: Response
   return ApiResponse.success(res, 'Bookings fetched', result);
 });
 
+export const requestSlotAvailability = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const input = req.body as RequestSlotAvailabilityInput;
+  const request = await bookingService.requestSlotAvailability(
+    getSingleParam(req.params.productId),
+    input,
+    req.user!._id,
+  );
+  return ApiResponse.created(
+    res,
+    "Your request has been received — we'll reach out when a slot opens up",
+    request,
+  );
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Admin
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,6 +82,17 @@ export const updateBookingProduct = asyncHandler(async (req: Request, res: Respo
   const input = req.body as UpdateBookingProductInput;
   const product = await bookingService.updateBookingProduct(getSingleParam(req.params.productId), input);
   return ApiResponse.success(res, 'Booking product updated', product);
+});
+
+export const uploadBookingProductImage = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) {
+    return ApiResponse.error(res, 'No image file uploaded', 400);
+  }
+  const product = await bookingService.updateBookingProductImage(
+    getSingleParam(req.params.productId),
+    req.file,
+  );
+  return ApiResponse.success(res, 'Booking product image updated', { imageUrl: product.imageUrl });
 });
 
 export const publishBookingProduct = asyncHandler(async (req: Request, res: Response) => {
@@ -103,4 +129,21 @@ export const getAllBookings = asyncHandler(async (req: Request, res: Response) =
   const limit = Number(req.query.limit) || 20;
   const result = await bookingService.getAllBookings(page, limit);
   return ApiResponse.success(res, 'Bookings fetched', result);
+});
+
+export const getAllSlotAvailabilityRequests = asyncHandler(async (req: Request, res: Response) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 20;
+  const result = await bookingService.getAllSlotAvailabilityRequests(page, limit);
+  return ApiResponse.success(res, 'Slot availability requests fetched', result);
+});
+
+export const resolveSlotAvailabilityRequest = asyncHandler(async (req: Request, res: Response) => {
+  const request = await bookingService.resolveSlotAvailabilityRequest(getSingleParam(req.params.requestId));
+  return ApiResponse.success(res, 'Slot availability request marked resolved', request);
+});
+
+export const deleteSlotAvailabilityRequest = asyncHandler(async (req: Request, res: Response) => {
+  await bookingService.deleteSlotAvailabilityRequest(getSingleParam(req.params.requestId));
+  return ApiResponse.success(res, 'Slot availability request deleted');
 });

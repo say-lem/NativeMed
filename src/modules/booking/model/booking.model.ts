@@ -13,6 +13,11 @@ export interface IBookingProduct extends Document {
   _id: Types.ObjectId;
   title: string;
   description: string;
+  // Longer-form write-up shown on the session's detail page — `description`
+  // stays the short summary used in listings/cards.
+  detailedDescription?: string;
+  imageUrl?: string;
+  imagePublicId?: string; // select:false — Cloudinary ref, used only for replace/delete
   price: number;
   // Reusable time-of-day options offered on every available date. Each
   // (date, time) pair is booked independently — see IAvailableDate.bookedTimes.
@@ -36,6 +41,9 @@ const bookingProductSchema = new Schema<IBookingProduct>(
   {
     title:          { type: String, required: true, trim: true, maxlength: 200 },
     description:    { type: String, required: true, trim: true, maxlength: 2000 },
+    detailedDescription: { type: String, trim: true, maxlength: 20000 },
+    imageUrl:       { type: String },
+    imagePublicId:  { type: String, select: false },
     price:          { type: Number, required: true, min: 0 },
     availableTimes: {
       type: [String],
@@ -53,6 +61,17 @@ const bookingProductSchema = new Schema<IBookingProduct>(
 );
 
 bookingProductSchema.index({ isPublished: 1 });
+
+// imagePublicId is an internal Cloudinary ref — never sent to clients, same
+// pattern as Course.thumbnailPublicId.
+bookingProductSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    const safeRet = ret as unknown as Record<string, unknown>;
+    delete safeRet.imagePublicId;
+    delete safeRet.__v;
+    return safeRet;
+  },
+});
 
 export const BookingProduct = model<IBookingProduct>('BookingProduct', bookingProductSchema);
 
@@ -101,3 +120,55 @@ sessionBookingSchema.index({ productId: 1 });
 sessionBookingSchema.index({ stripeCheckoutSessionId: 1 }, { sparse: true, unique: true });
 
 export const SessionBooking = model<ISessionBooking>('SessionBooking', sessionBookingSchema);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SlotAvailabilityRequest — a user reaching out about a BookingProduct that
+// currently has no open (date, time) slot to book. Lets the admin follow up
+// once a new date is added, without the user having to keep checking back.
+// Only acceptable when the product genuinely has no open slot — enforced in
+// booking.service.ts's requestSlotAvailability().
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SlotRequestStatus = 'pending' | 'resolved';
+
+export interface ISlotAvailabilityRequest extends Document {
+  _id: Types.ObjectId;
+  productId: Types.ObjectId;
+  userId: Types.ObjectId;
+  name: string;
+  email: string;
+  examSitting: string;
+  preferredDates: Date[];
+  status: SlotRequestStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const slotAvailabilityRequestSchema = new Schema<ISlotAvailabilityRequest>(
+  {
+    productId:      { type: Schema.Types.ObjectId, ref: 'BookingProduct', required: true },
+    userId:         { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    name:           { type: String, required: true, trim: true, maxlength: 200 },
+    email:          { type: String, required: true, trim: true, lowercase: true },
+    examSitting:    { type: String, required: true, trim: true },
+    preferredDates: {
+      type: [Date],
+      required: true,
+      validate: {
+        validator: (dates: Date[]) => dates.length > 0,
+        message: 'At least one preferred date is required',
+      },
+    },
+    status: { type: String, enum: ['pending', 'resolved'], default: 'pending' },
+  },
+  { timestamps: true },
+);
+
+// Admin list, newest first; per-product lookups
+slotAvailabilityRequestSchema.index({ createdAt: -1 });
+slotAvailabilityRequestSchema.index({ productId: 1 });
+
+export const SlotAvailabilityRequest = model<ISlotAvailabilityRequest>(
+  'SlotAvailabilityRequest',
+  slotAvailabilityRequestSchema,
+);
