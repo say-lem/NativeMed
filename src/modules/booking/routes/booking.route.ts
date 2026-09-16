@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../../shared/middleware/authenticate';
 import { validate } from '../../../shared/middleware/validate';
-import { bookSessionSchema } from '../schema/booking.schema';
+import { bookSessionSchema, requestSlotAvailabilitySchema } from '../schema/booking.schema';
 import * as bookingController from '../controller/booking.controller';
 
 const router = Router();
@@ -20,6 +20,15 @@ router.post(
   authenticate,
   validate(bookSessionSchema),
   bookingController.bookSession,
+);
+
+// Reach out about a session with no open slot — only accepted when the
+// product genuinely has nothing bookable right now (see booking.service.ts).
+router.post(
+  '/:productId/request-slot',
+  authenticate,
+  validate(requestSlotAvailabilitySchema),
+  bookingController.requestSlotAvailability,
 );
 
 export default router;

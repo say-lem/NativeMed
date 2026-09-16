@@ -17,6 +17,7 @@ export interface IPayment extends Document {
   method: PaymentMethod;
   itemType: PaymentItemType;
   courseId?: Types.ObjectId;
+  bookingId?: Types.ObjectId;
   tier?: CourseAccessTier;
   billingInterval?: BillingInterval;
   stripeInvoiceId?: string;
@@ -39,8 +40,9 @@ const paymentSchema = new Schema<IPayment>(
       default: 'pending',
     },
     method:                  { type: String, enum: ['stripe'], default: 'stripe' },
-    itemType:                { type: String, enum: ['case_bank', 'course'], required: true },
+    itemType:                { type: String, enum: ['case_bank', 'course', 'booking'], required: true },
     courseId:                { type: Schema.Types.ObjectId, ref: 'Course' },
+    bookingId:               { type: Schema.Types.ObjectId, ref: 'SessionBooking' },
     tier:                    { type: String, enum: ['mocksessions_only', 'mocksession_and_lectures'] },
     billingInterval:         { type: String, enum: ['monthly', 'quarterly'] },
     stripeInvoiceId:         { type: String },
@@ -53,6 +55,7 @@ const paymentSchema = new Schema<IPayment>(
 
 paymentSchema.index({ userId: 1, createdAt: -1 });
 paymentSchema.index({ stripeInvoiceId: 1 }, { sparse: true, unique: true });
-paymentSchema.index({ stripeCheckoutSessionId: 1 }, { sparse: true });
+// unique — booking payments are upserted keyed on this (one Payment per checkout session)
+paymentSchema.index({ stripeCheckoutSessionId: 1 }, { sparse: true, unique: true });
 
 export const Payment = model<IPayment>('Payment', paymentSchema);

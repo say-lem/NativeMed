@@ -24,6 +24,7 @@ export const CloudinaryFolders = {
   FREE_PRODUCT_PDFS:    'native-med/free-products/pdfs',
   FREE_PRODUCT_COVERS:  'native-med/free-products/covers',
   CASE_BANK_OVERVIEW:   'native-med/case-bank/overview',
+  BOOKING_IMAGES:       'native-med/booking/images',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -144,3 +144,39 @@ export const sendBookingNotificationEmail = async (params: {
     ],
   });
 };
+
+// ── Slot availability request — sent to the admin when a user asks to be ──
+// ── contacted about a session that currently has no open date/time ─────────
+
+export const sendSlotAvailabilityRequestEmail = async (params: {
+  productTitle: string;
+  name: string;
+  email: string;
+  examSitting: string;
+  preferredDates: Date[];
+}): Promise<void> => {
+  const safeTitle = escapeHtml(params.productTitle);
+  const safeName = escapeHtml(params.name);
+  const safeEmail = escapeHtml(params.email);
+  const safeExamSitting = escapeHtml(params.examSitting);
+  const datesLabel = params.preferredDates.map(formatDate).join(', ');
+
+  const body = `
+    <p>A user has asked to be contacted about a one-on-one session with no open slots.</p>
+    <p><strong>Session:</strong> ${safeTitle}<br/>
+    <strong>Exam sitting:</strong> ${safeExamSitting}<br/>
+    <strong>Preferred date(s):</strong> ${datesLabel}</p>
+    <hr class="divider" />
+    <p><strong>Name:</strong> ${safeName}<br/>
+    <strong>Email:</strong> ${safeEmail}</p>
+    <p class="note">Reply directly to this email to respond to ${safeName}.</p>
+  `;
+
+  await sendMail({
+    to: env.CONTACT_EMAIL_TO ?? env.EMAIL_FROM_ADDRESS,
+    replyTo: params.email,
+    subject: `Slot request: ${params.productTitle} — no availability`,
+    html: layout('Session Availability Request', body),
+    text: `Availability request for ${params.productTitle}.\nExam sitting: ${params.examSitting}\nPreferred date(s): ${datesLabel}\nName: ${params.name}\nEmail: ${params.email}`,
+  });
+};
