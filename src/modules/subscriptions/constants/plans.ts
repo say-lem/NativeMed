@@ -1,9 +1,5 @@
 import { env } from '../../../config/env';
-import {
-  BillingInterval,
-  CourseAccessTier,
-  SubscriptionType,
-} from '../../../shared/types';
+import { BillingInterval, SubscriptionType } from '../../../shared/types';
 
 export interface PlanPrice {
   amount: number;       // in pence
@@ -15,7 +11,6 @@ export interface PlanPrice {
 
 export interface PlanDefinition {
   type: SubscriptionType;
-  tier?: CourseAccessTier;
   name: string;
   description: string;
   prices: PlanPrice[];
@@ -36,20 +31,12 @@ export const CASE_BANK_PLAN: PlanDefinition = {
   ],
 };
 
-/** Access tiers for course checkout — amounts come from each course's per-tier pricing. */
+/** Course checkout plan — amount comes from each course's own pricing. */
 export const COURSE_PLANS: PlanDefinition[] = [
   {
     type: 'course',
-    tier: 'mocksessions_only',
-    name: 'Course — Mock Sessions Only',
-    description: 'Access to mock session materials on Google Drive. Price is set per course.',
-    prices: [],
-  },
-  {
-    type: 'course',
-    tier: 'mocksession_and_lectures',
-    name: 'Course — Mock Sessions + Lectures',
-    description: 'Access to mock sessions and lecture materials on Google Drive. Price is set per course.',
+    name: 'Course',
+    description: 'Access to course materials on Google Drive. Price is set per course.',
     prices: [],
   },
 ];

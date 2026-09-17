@@ -69,7 +69,6 @@ export const changeCoursePlan = asyncHandler(async (req: AuthRequest, res: Respo
   const status = await paymentsService.changeCoursePlan({
     userId: req.user!._id,
     courseId,
-    newTier: req.body.tier,
     newInterval: req.body.interval,
   });
   return ApiResponse.success(res, 'Subscription plan updated', status);

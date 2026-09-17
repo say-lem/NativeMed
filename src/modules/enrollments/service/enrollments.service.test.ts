@@ -4,24 +4,20 @@ import { Enrollment } from '../model/enrollments.model';
 import { createTestUser, createTestCourse, objectId } from '../../../../tests/helpers/factories';
 
 describe('enrollments.service', () => {
-  describe('isEnrolled / getEnrollmentAccessTier', () => {
-    it('is false / null when there is no enrollment', async () => {
+  describe('isEnrolled', () => {
+    it('is false when there is no enrollment', async () => {
       const user = await createTestUser();
       const course = await createTestCourse(objectId());
 
       expect(await enrollmentsService.isEnrolled(user._id, course._id.toString())).toBe(false);
-      expect(await enrollmentsService.getEnrollmentAccessTier(user._id, course._id.toString())).toBeNull();
     });
 
-    it('is true / tier once enrolled and active', async () => {
+    it('is true once enrolled and active', async () => {
       const user = await createTestUser();
       const course = await createTestCourse(objectId());
-      await enrollmentsService.createEnrollment(user._id, course._id.toString(), objectId(), 'mocksessions_only');
+      await enrollmentsService.createEnrollment(user._id, course._id.toString(), objectId());
 
       expect(await enrollmentsService.isEnrolled(user._id, course._id.toString())).toBe(true);
-      expect(await enrollmentsService.getEnrollmentAccessTier(user._id, course._id.toString())).toBe(
-        'mocksessions_only',
-      );
     });
   });
 
@@ -126,23 +122,23 @@ describe('enrollments.service', () => {
     });
   });
 
-  describe('revokeAllEnrollmentsForCourse', () => {
-    it('deactivates every active enrollment for the course', async () => {
+  describe('deleteAllEnrollmentsForCourse', () => {
+    it('deletes every enrollment record for the course', async () => {
       const course = await createTestCourse(objectId());
       const userA = await createTestUser();
       const userB = await createTestUser();
       await enrollmentsService.createEnrollment(userA._id, course._id.toString(), objectId());
       await enrollmentsService.createEnrollment(userB._id, course._id.toString(), objectId());
 
-      await enrollmentsService.revokeAllEnrollmentsForCourse(course._id.toString());
+      await enrollmentsService.deleteAllEnrollmentsForCourse(course._id.toString());
 
-      const active = await Enrollment.countDocuments({ courseId: course._id, isActive: true });
-      expect(active).toBe(0);
+      const remaining = await Enrollment.countDocuments({ courseId: course._id });
+      expect(remaining).toBe(0);
     });
 
     it('does not throw when there are no enrollments', async () => {
       await expect(
-        enrollmentsService.revokeAllEnrollmentsForCourse(new Types.ObjectId().toString()),
+        enrollmentsService.deleteAllEnrollmentsForCourse(new Types.ObjectId().toString()),
       ).resolves.toBeUndefined();
     });
   });
@@ -168,10 +164,9 @@ describe('enrollments.service', () => {
         enrolled: false,
       });
 
-      await enrollmentsService.createEnrollment(user._id, course._id.toString(), objectId(), 'mocksession_and_lectures');
+      await enrollmentsService.createEnrollment(user._id, course._id.toString(), objectId());
       const result = await enrollmentsService.checkEnrollment(user._id, course._id.toString());
       expect(result.enrolled).toBe(true);
-      expect(result.accessTier).toBe('mocksession_and_lectures');
     });
 
     it('getAllEnrollments paginates across all users', async () => {

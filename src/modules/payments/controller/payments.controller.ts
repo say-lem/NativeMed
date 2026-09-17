@@ -17,7 +17,6 @@ export const createCheckout = asyncHandler(async (req: AuthRequest, res: Respons
     userId: req.user!._id,
     email: user.email,
     type: req.body.type,
-    tier: req.body.tier,
     interval: req.body.interval,
     courseId: req.body.courseId,
     successUrl: req.body.successUrl,

@@ -17,7 +17,6 @@ export const manualEnrollSchema = z
     userId:       mongoId,
     type:         z.enum(['case_bank', 'course']).default('course'),
     courseId:     mongoId.optional(),
-    accessTier:   z.enum(['mocksessions_only', 'mocksession_and_lectures']).optional(),
     // Case Bank only — how many days of access to grant. Defaults to 30 (one billing month).
     durationDays: z.coerce.number().int().min(1).max(3650).optional(),
   })

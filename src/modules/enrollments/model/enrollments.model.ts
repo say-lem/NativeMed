@@ -1,5 +1,4 @@
 import { Schema, model, Document, Types } from 'mongoose';
-import { CourseAccessTier } from '../../../shared/types';
 
 export type EnrollmentSource = 'payment' | 'manual';
 
@@ -9,7 +8,6 @@ export interface IEnrollment extends Document {
   courseId: Types.ObjectId;
   paymentId: Types.ObjectId;
   subscriptionId?: Types.ObjectId;
-  accessTier: CourseAccessTier;
   source: EnrollmentSource;
   grantedBy?: Types.ObjectId;
   accessGrantedAt: Date;
@@ -24,7 +22,6 @@ const enrollmentSchema = new Schema<IEnrollment>(
     courseId:       { type: Schema.Types.ObjectId, ref: 'Course',       required: true },
     paymentId:      { type: Schema.Types.ObjectId, ref: 'Payment',      required: true },
     subscriptionId: { type: Schema.Types.ObjectId, ref: 'Subscription' },
-    accessTier:     { type: String, enum: ['mocksessions_only', 'mocksession_and_lectures'], default: 'mocksession_and_lectures' },
     source:         { type: String, enum: ['payment', 'manual'], default: 'payment' },
     grantedBy:       { type: Schema.Types.ObjectId, ref: 'User' },
     accessGrantedAt: { type: Date, default: Date.now },

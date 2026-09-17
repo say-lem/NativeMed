@@ -1,7 +1,6 @@
 import { Schema, model, Document, Types } from 'mongoose';
 import {
   BillingInterval,
-  CourseAccessTier,
   SubscriptionStatus,
   SubscriptionType,
 } from '../../../shared/types';
@@ -11,7 +10,6 @@ export interface ISubscription extends Document {
   userId: Types.ObjectId;
   type: SubscriptionType;
   courseId?: Types.ObjectId;
-  tier?: CourseAccessTier;
   billingInterval: BillingInterval;
   status: SubscriptionStatus;
   stripeCustomerId: string;
@@ -31,7 +29,6 @@ const subscriptionSchema = new Schema<ISubscription>(
     userId:               { type: Schema.Types.ObjectId, ref: 'User',   required: true },
     type:                 { type: String, enum: ['case_bank', 'course'], required: true },
     courseId:             { type: Schema.Types.ObjectId, ref: 'Course' },
-    tier:                 { type: String, enum: ['mocksessions_only', 'mocksession_and_lectures'] },
     billingInterval:      { type: String, enum: ['monthly', 'quarterly'], required: true },
     status:               {
       type:    String,

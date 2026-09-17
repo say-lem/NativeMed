@@ -51,7 +51,6 @@ const createActiveCourseSub = (
     userId,
     type: 'course',
     courseId,
-    tier: 'mocksessions_only',
     billingInterval: 'monthly',
     status: 'active',
     stripeCustomerId: 'cus_test',
@@ -81,16 +80,13 @@ describe('subscriptions.service', () => {
       expect(await subscriptionsService.hasCaseBankAccess(userId)).toBe(false);
     });
 
-    it('getCourseAccessTier / hasCourseAccess reflect an active course subscription', async () => {
+    it('hasCourseAccess reflects an active course subscription', async () => {
       const userId = objectId();
       const courseId = objectId();
       expect(await subscriptionsService.hasCourseAccess(userId, courseId.toString())).toBe(false);
 
-      await createActiveCourseSub(userId, courseId, { tier: 'mocksession_and_lectures' });
+      await createActiveCourseSub(userId, courseId);
       expect(await subscriptionsService.hasCourseAccess(userId, courseId.toString())).toBe(true);
-      expect(await subscriptionsService.getCourseAccessTier(userId, courseId.toString())).toBe(
-        'mocksession_and_lectures',
-      );
     });
   });
 
