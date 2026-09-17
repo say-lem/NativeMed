@@ -71,8 +71,11 @@ export const updatePrivacyPolicySchema = z.object({
 
 export type UpdatePrivacyPolicyInput = z.infer<typeof updatePrivacyPolicySchema>;
 
-export const updateFounderBioSchema = z.object({
-  content: z.string().trim().min(1, 'Content is required').max(20000),
-});
+export const updateFounderBioSchema = z
+  .object({
+    content: z.string().trim().min(1, 'Content is required').max(20000).optional(),
+    title:   z.string().trim().min(1, 'Title is required').max(200).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
 
 export type UpdateFounderBioInput = z.infer<typeof updateFounderBioSchema>;

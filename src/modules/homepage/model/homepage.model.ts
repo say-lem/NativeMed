@@ -32,6 +32,9 @@ export interface IHomepageSettings extends Document {
   privacyPolicyUpdatedAt?: Date;
   founderBio: string;
   founderBioUpdatedAt?: Date;
+  founderTitle?: string;
+  founderImageUrl?: string;
+  founderImagePublicId?: string; // select:false — Cloudinary ref, used only for replace/delete
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,8 +76,27 @@ const homepageSettingsSchema = new Schema<IHomepageSettings>(
     privacyPolicyUpdatedAt:      { type: Date },
     founderBio:                  { type: String, trim: true, default: '' },
     founderBioUpdatedAt:         { type: Date },
+    // Title/qualification (e.g. "Founder & CEO, MBBS, MRCGP") and profile
+    // photo — updated via the same founder-bio endpoint / its own image
+    // upload endpoint (see updateFounderBio / updateFounderImage in the
+    // service), bumping founderBioUpdatedAt as the "last edited" marker for
+    // the whole founder section.
+    founderTitle:         { type: String, trim: true, maxlength: 200 },
+    founderImageUrl:      { type: String },
+    founderImagePublicId: { type: String, select: false },
   },
   { timestamps: true },
 );
+
+// founderImagePublicId is an internal Cloudinary ref — never sent to clients,
+// same pattern as Course.thumbnailPublicId.
+homepageSettingsSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    const safeRet = ret as unknown as Record<string, unknown>;
+    delete safeRet.founderImagePublicId;
+    delete safeRet.__v;
+    return safeRet;
+  },
+});
 
 export const HomepageSettings = model<IHomepageSettings>('HomepageSettings', homepageSettingsSchema);

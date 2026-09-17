@@ -1,5 +1,6 @@
 import { AppError } from '../../../shared/utils/appError';
 import { MockCase } from '../../cases/model/cases.model';
+import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
 import { HomepageSettings } from '../model/homepage.model';
 import {
   UpdateHomepageStatsInput,
@@ -222,21 +223,59 @@ export const getFounderBio = async () => {
   const settings = await getOrCreateSettings();
   return {
     content: settings.founderBio,
+    title: settings.founderTitle ?? null,
+    imageUrl: settings.founderImageUrl ?? null,
     updatedAt: settings.founderBioUpdatedAt ?? null,
   };
 };
 
 export const updateFounderBio = async (input: UpdateFounderBioInput) => {
+  const setFields: Record<string, unknown> = { founderBioUpdatedAt: new Date() };
+  if (input.content !== undefined) setFields.founderBio = input.content;
+  if (input.title !== undefined) setFields.founderTitle = input.title;
+
   const settings = await HomepageSettings.findOneAndUpdate(
     {},
-    {
-      $set: { founderBio: input.content, founderBioUpdatedAt: new Date() },
-      $setOnInsert: {},
-    },
+    { $set: setFields, $setOnInsert: {} },
     { returnDocument: 'after', upsert: true },
   );
   return {
     content: settings!.founderBio,
+    title: settings!.founderTitle ?? null,
+    imageUrl: settings!.founderImageUrl ?? null,
     updatedAt: settings!.founderBioUpdatedAt ?? null,
   };
+};
+
+// Destroy-then-upload, same ordering rationale as Course.updateCourseThumbnail —
+// if the new upload fails, the old image is already gone but no bad data has
+// been written.
+export const updateFounderImage = async (file: Express.Multer.File) => {
+  await getOrCreateSettings();
+  const existing = await HomepageSettings.findOne({}).select('+founderImagePublicId');
+
+  if (existing?.founderImagePublicId) {
+    try {
+      await cloudinary.uploader.destroy(existing.founderImagePublicId, { resource_type: 'image' });
+    } catch (err) {
+      console.error(`⚠️  Could not delete old founder image (${existing.founderImagePublicId}):`, err);
+    }
+  }
+
+  const result = await uploadBuffer(file.buffer, {
+    folder: CloudinaryFolders.FOUNDER_IMAGES,
+    resource_type: 'image',
+    use_filename: false,
+    unique_filename: true,
+    overwrite: false,
+    transformation: [{ width: 800, height: 800, crop: 'fill', gravity: 'face' }],
+  });
+
+  const updated = await HomepageSettings.findOneAndUpdate(
+    {},
+    { founderImageUrl: result.secure_url, founderImagePublicId: result.public_id },
+    { returnDocument: 'after', upsert: true },
+  );
+
+  return updated!;
 };
