@@ -13,6 +13,7 @@ import {
   updatePrivacyPolicySchema,
   updateFounderBioSchema,
 } from '../schema/homepage.schema';
+import { uploadFounderImage } from '../upload/homepage.upload';
 import * as homepageController from '../controller/homepage.controller';
 
 const router = Router();
@@ -46,5 +47,13 @@ router.patch('/privacy-policy', validate(updatePrivacyPolicySchema), homepageCon
 // Founder's bio — own endpoint, same create-on-first-PATCH pattern as terms.
 router.get('/founder-bio', homepageController.getFounderBio);
 router.patch('/founder-bio', validate(updateFounderBioSchema), homepageController.updateFounderBio);
+
+// Founder's photo is a separate endpoint so it can use multer middleware
+// without interfering with the JSON body parser used on the PATCH above.
+router.patch(
+  '/founder-bio/image',
+  uploadFounderImage.single('image'),
+  homepageController.uploadFounderImage,
+);
 
 export default router;
