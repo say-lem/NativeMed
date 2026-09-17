@@ -118,3 +118,11 @@ export const updateFounderBio = asyncHandler(async (req: Request, res: Response)
   const data = await homepageService.updateFounderBio(input);
   return ApiResponse.success(res, "Founder's bio updated", data);
 });
+
+export const uploadFounderImage = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) {
+    return ApiResponse.error(res, 'No image file uploaded', 400);
+  }
+  const settings = await homepageService.updateFounderImage(req.file);
+  return ApiResponse.success(res, "Founder's image updated", { imageUrl: settings.founderImageUrl });
+});
