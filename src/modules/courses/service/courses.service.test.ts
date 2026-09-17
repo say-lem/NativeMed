@@ -9,12 +9,8 @@ import { objectId } from '../../../../tests/helpers/factories';
 const validCreateInput = {
   title: 'MRCGP CSA Prep',
   description: 'A full prep course for the CSA exam.',
-  pricing: {
-    mocksessions_only: { monthly: 40 },
-    mocksession_and_lectures: { monthly: 70 },
-  },
-  lecturesDriveFolderId: 'drive-lectures-id',
-  mockSessionsDriveFolderId: 'drive-mocks-id',
+  pricing: { monthly: 70 },
+  driveFolderId: 'drive-folder-id',
 };
 
 describe('courses.service', () => {
@@ -34,21 +30,15 @@ describe('courses.service', () => {
   });
 
   describe('assertCourseHasPricing', () => {
-    it('throws when a tier has no price at all', () => {
-      expect(() =>
-        coursesService.assertCourseHasPricing({
-          mocksessions_only: {},
-          mocksession_and_lectures: { monthly: 10 },
-        }),
-      ).toThrow(/mocksessions_only/);
+    it('throws when pricing has no price at all', () => {
+      expect(() => coursesService.assertCourseHasPricing({})).toThrow(
+        /At least one of monthly or quarterly/,
+      );
     });
 
-    it('passes when every tier has at least one price', () => {
+    it('passes when at least one price is set', () => {
       expect(() =>
-        coursesService.assertCourseHasPricing({
-          mocksessions_only: { quarterly: 100 },
-          mocksession_and_lectures: { monthly: 10 },
-        }),
+        coursesService.assertCourseHasPricing({ quarterly: 100 }),
       ).not.toThrow();
     });
   });
@@ -67,32 +57,32 @@ describe('courses.service', () => {
       );
     });
 
-    it('merges partial tier pricing instead of overwriting the whole tier', async () => {
+    it('merges partial pricing instead of overwriting it wholesale', async () => {
       const adminId = objectId();
       const created = await Course.create({ ...validCreateInput, createdBy: adminId });
 
       const updated = (await coursesService.updateCourse(created._id.toString(), {
-        pricing: { mocksessions_only: { quarterly: 100 } },
-      })) as unknown as { pricing: { mocksessions_only: { monthly?: number; quarterly?: number } } };
+        pricing: { quarterly: 200 },
+      })) as unknown as { pricing: { monthly?: number; quarterly?: number } };
 
-      expect(updated.pricing.mocksessions_only.monthly).toBe(40); // preserved
-      expect(updated.pricing.mocksessions_only.quarterly).toBe(100); // merged in
+      expect(updated.pricing.monthly).toBe(70); // preserved
+      expect(updated.pricing.quarterly).toBe(200); // merged in
     });
 
-    it('rejects a pricing update that leaves a tier with no price', async () => {
+    it('rejects a pricing update that leaves the course with no price', async () => {
       const adminId = objectId();
       // Bypass the zod schema (Mongoose alone won't enforce "at least one
-      // price") to get a course with an already-empty tier, since the merge
+      // price") to get a course with already-empty pricing, since the merge
       // logic only ever adds to existing prices — it can never strip one out.
       const created = await Course.create({
         ...validCreateInput,
-        pricing: { mocksessions_only: {}, mocksession_and_lectures: { monthly: 70 } },
+        pricing: {},
         createdBy: adminId,
       });
 
       await expect(
         coursesService.updateCourse(created._id.toString(), {
-          pricing: { mocksession_and_lectures: { quarterly: 200 } },
+          pricing: {},
         }),
       ).rejects.toMatchObject({ statusCode: 400 });
     });

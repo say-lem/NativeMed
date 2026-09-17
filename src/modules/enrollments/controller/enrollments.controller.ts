@@ -54,7 +54,7 @@ export const getEnrollmentsByUser = asyncHandler(async (req: Request, res: Respo
 });
 
 export const manualEnroll = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { userId, type, courseId, accessTier, durationDays } = req.body;
+  const { userId, type, courseId, durationDays } = req.body;
 
   if (type === 'case_bank') {
     const subscription = await subscriptionsService.manualGrantCaseBank(
@@ -69,7 +69,6 @@ export const manualEnroll = asyncHandler(async (req: AuthRequest, res: Response)
     getSingleParam(userId),
     courseId,
     req.user!._id,
-    accessTier,
   );
   return ApiResponse.created(
     res,

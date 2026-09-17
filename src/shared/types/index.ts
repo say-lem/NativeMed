@@ -50,7 +50,6 @@ export type SubscriptionStatus = 'active' | 'expired' | 'cancelled' | 'past_due'
 
 // ── Subscription plans ────────────────────────────────────────────────────────
 export type SubscriptionType = 'case_bank' | 'course';
-export type CourseAccessTier = 'mocksessions_only' | 'mocksession_and_lectures';
 export type BillingInterval = 'monthly' | 'quarterly';
 
 // ── Difficulty levels ─────────────────────────────────────────────────────────

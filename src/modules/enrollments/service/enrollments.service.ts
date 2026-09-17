@@ -1,46 +1,17 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../../shared/utils/appError';
-import { CourseAccessTier } from '../../../shared/types';
 import { Enrollment } from '../model/enrollments.model';
 import { Course } from '../../courses/model/courses.model';
 import { User } from '../../auth/model/auth.model';
 import { addDrivePermission, removeDrivePermission } from '../../../config/google-drive';
 import { sendEnrollmentEmail } from '../email/enrollments.email.service';
 
-type CourseDriveFolders = {
-  lecturesDriveFolderId?: string;
-  mockSessionsDriveFolderId?: string;
-};
-
-const DRIVE_FOLDER_SELECT = '+lecturesDriveFolderId +mockSessionsDriveFolderId';
-
-const getFoldersForTier = (
-  course: CourseDriveFolders,
-  accessTier: CourseAccessTier,
-): string[] => {
-  const folders: string[] = [];
-
-  if (
-    accessTier === 'mocksessions_only' ||
-    accessTier === 'mocksession_and_lectures'
-  ) {
-    if (course.mockSessionsDriveFolderId) {
-      folders.push(course.mockSessionsDriveFolderId);
-    }
-  }
-
-  if (accessTier === 'mocksession_and_lectures' && course.lecturesDriveFolderId) {
-    folders.push(course.lecturesDriveFolderId);
-  }
-
-  return folders;
-};
+const DRIVE_FOLDER_SELECT = '+driveFolderId';
 
 const getDriveContext = async (
   userId: Types.ObjectId | string,
   courseId: string,
-  accessTier: CourseAccessTier,
-): Promise<{ email: string; folderIds: string[] } | null> => {
+): Promise<{ email: string; folderId: string } | null> => {
   const [user, course] = await Promise.all([
     User.findById(userId).select('email fullName').lean(),
     Course.findById(courseId).select(DRIVE_FOLDER_SELECT).lean(),
@@ -48,16 +19,15 @@ const getDriveContext = async (
 
   if (!user) return null;
 
-  const folderIds = course ? getFoldersForTier(course, accessTier) : [];
-  if (folderIds.length === 0) {
+  if (!course?.driveFolderId) {
     console.warn(
-      `⚠️   Course ${courseId} has no Drive folders configured for tier "${accessTier}" — Drive access skipped. ` +
-      `Set folders via POST/PATCH /api/v1/courses/${courseId}.`,
+      `⚠️   Course ${courseId} has no Drive folder configured — Drive access skipped. ` +
+      `Set it via POST/PATCH /api/v1/courses/${courseId}.`,
     );
     return null;
   }
 
-  return { email: user.email, folderIds };
+  return { email: user.email, folderId: course.driveFolderId };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,85 +42,34 @@ export const isEnrolled = async (
   return !!enrollment;
 };
 
-export const getEnrollmentAccessTier = async (
-  userId: Types.ObjectId,
-  courseId: string,
-): Promise<CourseAccessTier | null> => {
-  const enrollment = await Enrollment.findOne({ userId, courseId, isActive: true });
-  return enrollment?.accessTier ?? null;
-};
-
 const MANUAL_PAYMENT_ID = new Types.ObjectId('000000000000000000000000');
 
-const grantDriveFolders = async (
+const grantDriveAccess = async (
   userId: Types.ObjectId | string,
   courseId: string,
-  accessTier: CourseAccessTier,
   message: string,
 ) => {
   try {
-    const ctx = await getDriveContext(userId, courseId, accessTier);
+    const ctx = await getDriveContext(userId, courseId);
     if (!ctx) return;
 
-    await Promise.all(
-      ctx.folderIds.map((folderId) => addDrivePermission(ctx.email, folderId, message)),
-    );
+    await addDrivePermission(ctx.email, ctx.folderId, message);
   } catch (err) {
     console.error('❌  Drive grant failed:', err);
   }
 };
 
-const revokeDriveFolders = async (
+const revokeDriveAccess = async (
   userId: Types.ObjectId | string,
   courseId: string,
-  accessTier: CourseAccessTier,
 ) => {
   try {
-    const ctx = await getDriveContext(userId, courseId, accessTier);
+    const ctx = await getDriveContext(userId, courseId);
     if (!ctx) return;
 
-    await Promise.all(
-      ctx.folderIds.map((folderId) => removeDrivePermission(ctx.email, folderId)),
-    );
+    await removeDrivePermission(ctx.email, ctx.folderId);
   } catch (err) {
     console.error('❌  Drive revoke failed:', err);
-  }
-};
-
-const revokeLecturesFolderIfDowngraded = async (
-  userId: Types.ObjectId | string,
-  courseId: string,
-) => {
-  try {
-    const [user, course] = await Promise.all([
-      User.findById(userId).select('email').lean(),
-      Course.findById(courseId).select(DRIVE_FOLDER_SELECT).lean(),
-    ]);
-
-    if (!user?.email || !course?.lecturesDriveFolderId) return;
-
-    await removeDrivePermission(user.email, course.lecturesDriveFolderId);
-  } catch (err) {
-    console.error('❌  Drive revoke (lectures downgrade) failed:', err);
-  }
-};
-
-const grantLecturesFolderIfUpgraded = async (
-  userId: Types.ObjectId | string,
-  courseId: string,
-  message: string,
-) => {
-  try {
-    const [user, course] = await Promise.all([
-      User.findById(userId).select('email').lean(),
-      Course.findById(courseId).select(DRIVE_FOLDER_SELECT).lean(),
-    ]);
-
-    if (!user?.email || !course?.lecturesDriveFolderId) return;
-
-    await addDrivePermission(user.email, course.lecturesDriveFolderId, message);
-  } catch (err) {
-    console.error('❌  Drive grant (lectures upgrade) failed:', err);
   }
 };
 
@@ -190,37 +109,6 @@ const DRIVE_RESTORE_MESSAGE =
   'Your access to a Native Med course has been restored. ' +
   'You can once again access the course materials on Google Drive.';
 
-const syncDriveAccessForTierChange = async (
-  userId: Types.ObjectId | string,
-  courseId: string,
-  previousTier: CourseAccessTier | undefined,
-  accessTier: CourseAccessTier,
-) => {
-  if (previousTier === accessTier) return;
-
-  if (
-    previousTier === 'mocksession_and_lectures' &&
-    accessTier === 'mocksessions_only'
-  ) {
-    await revokeLecturesFolderIfDowngraded(userId, courseId);
-    return;
-  }
-
-  if (
-    previousTier === 'mocksessions_only' &&
-    accessTier === 'mocksession_and_lectures'
-  ) {
-    await grantLecturesFolderIfUpgraded(userId, courseId, DRIVE_ENROLLMENT_MESSAGE);
-    return;
-  }
-
-  if (previousTier) {
-    await revokeDriveFolders(userId, courseId, previousTier);
-  }
-
-  await grantDriveFolders(userId, courseId, accessTier, DRIVE_ENROLLMENT_MESSAGE);
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Create enrollment (called by payments service after successful payment)
 // Upsert — safe to call multiple times (Stripe webhook retries, etc.)
@@ -231,7 +119,6 @@ export const createEnrollment = async (
   userId: Types.ObjectId,
   courseId: string,
   paymentId: Types.ObjectId,
-  accessTier: CourseAccessTier = 'mocksession_and_lectures',
 ) => {
   const existing = await Enrollment.findOne({ userId, courseId });
   const wasActive = existing?.isActive ?? false;
@@ -242,7 +129,6 @@ export const createEnrollment = async (
       userId,
       courseId,
       paymentId,
-      accessTier,
       source: 'payment',
       isActive: true,
       accessGrantedAt: new Date(),
@@ -250,7 +136,7 @@ export const createEnrollment = async (
     { upsert: true, new: true },
   );
 
-  await grantDriveFolders(userId, courseId, accessTier, DRIVE_ENROLLMENT_MESSAGE);
+  await grantDriveAccess(userId, courseId, DRIVE_ENROLLMENT_MESSAGE);
 
   // Only on the transition into an active enrollment — skips webhook retries.
   if (!wasActive) {
@@ -264,10 +150,8 @@ export const createEnrollmentFromSubscription = async (
   userId: Types.ObjectId,
   courseId: string,
   subscriptionId: Types.ObjectId,
-  accessTier: CourseAccessTier,
 ) => {
   const existing = await Enrollment.findOne({ userId, courseId });
-  const previousTier = existing?.accessTier;
   const wasActive = existing?.isActive ?? false;
 
   const enrollment = await Enrollment.findOneAndUpdate(
@@ -277,7 +161,6 @@ export const createEnrollmentFromSubscription = async (
       courseId,
       paymentId: MANUAL_PAYMENT_ID,
       subscriptionId,
-      accessTier,
       source: 'payment',
       isActive: true,
       accessGrantedAt: new Date(),
@@ -285,10 +168,8 @@ export const createEnrollmentFromSubscription = async (
     { upsert: true, new: true },
   );
 
-  await syncDriveAccessForTierChange(userId, courseId, previousTier, accessTier);
-
-  // Only on the transition into an active enrollment — skips tier changes/retries.
   if (!wasActive) {
+    await grantDriveAccess(userId, courseId, DRIVE_ENROLLMENT_MESSAGE);
     void sendEnrollmentConfirmation(userId, courseId);
   }
 
@@ -303,7 +184,6 @@ export const manualEnroll = async (
   userId: string,
   courseId: string,
   grantedBy: Types.ObjectId,
-  accessTier: CourseAccessTier = 'mocksession_and_lectures',
 ) => {
   const user = await User.findById(userId);
   if (!user) throw new AppError('User not found', 404);
@@ -320,7 +200,6 @@ export const manualEnroll = async (
       userId,
       courseId,
       paymentId: MANUAL_PAYMENT_ID,
-      accessTier,
       source: 'manual',
       isActive: true,
       accessGrantedAt: new Date(),
@@ -329,7 +208,7 @@ export const manualEnroll = async (
     { upsert: true, new: true },
   );
 
-  await grantDriveFolders(userId, courseId, accessTier, DRIVE_COMPLIMENTARY_MESSAGE);
+  await grantDriveAccess(userId, courseId, DRIVE_COMPLIMENTARY_MESSAGE);
 
   void sendEnrollmentConfirmation(userId, courseId);
 
@@ -352,27 +231,29 @@ export const revokeEnrollment = async (
   enrollment.isActive = false;
   await enrollment.save();
 
-  await revokeDriveFolders(enrollment.userId as Types.ObjectId, courseId, enrollment.accessTier);
+  await revokeDriveAccess(enrollment.userId as Types.ObjectId, courseId);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Revoke all enrollments for a course (admin action — called when a course is
-// deleted). Unlike revokeEnrollment, this only touches currently-active
-// enrollments and never throws, so it's safe to run as part of a cascade.
-// Must be called with the course still in the DB — Drive folder revocation
-// looks the course back up by ID to find its folders.
+// Delete all enrollments for a course (admin action — called when a course is
+// deleted). Revokes Drive access for currently-active enrollments, then
+// removes every enrollment record for the course (active or not) — there's
+// no reason to keep enrollment rows pointing at a course that no longer
+// exists. Never throws, so it's safe to run as part of a cascade. Must be
+// called with the course still in the DB — Drive folder revocation looks
+// the course back up by ID to find its folder.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const revokeAllEnrollmentsForCourse = async (courseId: string): Promise<void> => {
-  const enrollments = await Enrollment.find({ courseId, isActive: true });
+export const deleteAllEnrollmentsForCourse = async (courseId: string): Promise<void> => {
+  const activeEnrollments = await Enrollment.find({ courseId, isActive: true });
 
   await Promise.all(
-    enrollments.map(async (enrollment) => {
-      enrollment.isActive = false;
-      await enrollment.save();
-      await revokeDriveFolders(enrollment.userId as Types.ObjectId, courseId, enrollment.accessTier);
-    }),
+    activeEnrollments.map((enrollment) =>
+      revokeDriveAccess(enrollment.userId as Types.ObjectId, courseId),
+    ),
   );
+
+  await Enrollment.deleteMany({ courseId });
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -389,10 +270,9 @@ export const restoreEnrollment = async (enrollmentId: string) => {
   enrollment.accessGrantedAt = new Date();
   await enrollment.save();
 
-  await grantDriveFolders(
+  await grantDriveAccess(
     enrollment.userId as Types.ObjectId,
     enrollment.courseId.toString(),
-    enrollment.accessTier,
     DRIVE_RESTORE_MESSAGE,
   );
 
@@ -412,12 +292,11 @@ export const getMyEnrollments = async (userId: Types.ObjectId) => {
 export const checkEnrollment = async (
   userId: Types.ObjectId,
   courseId: string,
-): Promise<{ enrolled: boolean; accessTier?: CourseAccessTier; accessGrantedAt?: Date }> => {
+): Promise<{ enrolled: boolean; accessGrantedAt?: Date }> => {
   const enrollment = await Enrollment.findOne({ userId, courseId, isActive: true });
   if (!enrollment) return { enrolled: false };
   return {
     enrolled: true,
-    accessTier: enrollment.accessTier,
     accessGrantedAt: enrollment.accessGrantedAt,
   };
 };

@@ -3,11 +3,9 @@ import Stripe from 'stripe';
 import { AppError } from '../../../shared/utils/appError';
 import {
   BillingInterval,
-  CourseAccessTier,
   SubscriptionStatus,
   SubscriptionType,
 } from '../../../shared/types';
-import { formatCourseAccessTier } from '../../../shared/constants/courseAccess';
 import { Subscription, ISubscription } from '../model/subscriptions.model';
 import { ALL_PLANS } from '../constants/plans';
 import {
@@ -55,14 +53,6 @@ export const getActiveCourseSubscription = async (
   });
 };
 
-export const getCourseAccessTier = async (
-  userId: Types.ObjectId,
-  courseId: string,
-): Promise<CourseAccessTier | null> => {
-  const sub = await getActiveCourseSubscription(userId, courseId);
-  return sub?.tier ?? null;
-};
-
 export const hasCourseAccess = async (
   userId: Types.ObjectId,
   courseId: string,
@@ -86,14 +76,12 @@ export const getMySubscriptions = async (userId: Types.ObjectId) => {
 const formatSubscriptionPlan = (
   type: SubscriptionType,
   billingInterval: BillingInterval,
-  tier?: CourseAccessTier,
 ): string => {
   if (type === 'case_bank') {
     return `Case Bank (${billingInterval})`;
   }
 
-  const tierLabel = tier ? formatCourseAccessTier(tier) : 'Course';
-  return `${tierLabel} (${billingInterval})`;
+  return `Course (${billingInterval})`;
 };
 
 export interface SubscriberListItem {
@@ -125,7 +113,6 @@ export const getAllSubscribers = async (): Promise<SubscriberListItem[]> => {
       subscriptionPlan: formatSubscriptionPlan(
         subscription.type,
         subscription.billingInterval,
-        subscription.tier,
       ),
       subscribedTo:
         subscription.type === 'case_bank'
@@ -164,7 +151,6 @@ export const getCourseSubscriptionStatus = async (
 
   return {
     active: true as const,
-    tier: sub.tier,
     currentPeriodEnd: sub.currentPeriodEnd,
     cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
     billingInterval: sub.billingInterval,
@@ -197,7 +183,6 @@ export interface UpsertSubscriptionInput {
   userId: Types.ObjectId;
   type: SubscriptionType;
   courseId?: Types.ObjectId;
-  tier?: CourseAccessTier;
   billingInterval: BillingInterval;
   stripeCustomerId: string;
   stripeSubscriptionId: string;

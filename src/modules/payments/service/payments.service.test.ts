@@ -54,7 +54,7 @@ describe('payments.service', () => {
     it('builds a course checkout session with inline price_data', async () => {
       const admin = await createTestUser({ role: 'admin' });
       const course = await createTestCourse(admin._id, {
-        pricing: { mocksessions_only: { monthly: 40 }, mocksession_and_lectures: { monthly: 70 } },
+        pricing: { monthly: 40 },
       });
       const userId = objectId();
       stripeMock.checkout.sessions.create.mockResolvedValueOnce({ id: 'cs_1', url: 'https://checkout.stripe.com/cs_1' });
@@ -63,7 +63,6 @@ describe('payments.service', () => {
         userId,
         email: 'buyer@example.com',
         type: 'course',
-        tier: 'mocksessions_only',
         interval: 'monthly',
         courseId: course._id.toString(),
       });
@@ -82,7 +81,6 @@ describe('payments.service', () => {
           userId: objectId(),
           email: 'buyer@example.com',
           type: 'course',
-          tier: 'mocksessions_only',
           interval: 'monthly',
           courseId: course._id.toString(),
         }),
@@ -98,17 +96,16 @@ describe('payments.service', () => {
           userId: objectId(),
           email: 'buyer@example.com',
           type: 'course',
-          tier: 'mocksessions_only',
           interval: 'monthly',
           courseId: course._id.toString(),
         }),
       ).rejects.toMatchObject({ statusCode: 400 });
     });
 
-    it('rejects when the requested tier/interval has no price set', async () => {
+    it('rejects when the requested interval has no price set', async () => {
       const admin = await createTestUser({ role: 'admin' });
       const course = await createTestCourse(admin._id, {
-        pricing: { mocksessions_only: { monthly: 40 }, mocksession_and_lectures: { monthly: 70 } },
+        pricing: { monthly: 40 },
       });
 
       await expect(
@@ -116,7 +113,6 @@ describe('payments.service', () => {
           userId: objectId(),
           email: 'buyer@example.com',
           type: 'course',
-          tier: 'mocksessions_only',
           interval: 'quarterly', // not set on this course
           courseId: course._id.toString(),
         }),
@@ -126,14 +122,13 @@ describe('payments.service', () => {
     it('rejects a second checkout when a conflicting subscription already exists', async () => {
       const admin = await createTestUser({ role: 'admin' });
       const course = await createTestCourse(admin._id, {
-        pricing: { mocksessions_only: { monthly: 40 }, mocksession_and_lectures: { monthly: 70 } },
+        pricing: { monthly: 40 },
       });
       const userId = objectId();
       await Subscription.create({
         userId,
         type: 'course',
         courseId: course._id,
-        tier: 'mocksessions_only',
         billingInterval: 'monthly',
         status: 'active',
         stripeCustomerId: 'cus_x',
@@ -147,7 +142,6 @@ describe('payments.service', () => {
           userId,
           email: 'buyer@example.com',
           type: 'course',
-          tier: 'mocksessions_only',
           interval: 'monthly',
           courseId: course._id.toString(),
         }),
@@ -178,7 +172,7 @@ describe('payments.service', () => {
 
       stripeMock.subscriptions.retrieve.mockResolvedValueOnce(
         fakeStripeSubscription({
-          metadata: { userId: user._id.toString(), type: 'course', interval: 'monthly', courseId: course._id.toString(), tier: 'mocksessions_only' },
+          metadata: { userId: user._id.toString(), type: 'course', interval: 'monthly', courseId: course._id.toString() },
         }),
       );
 
@@ -270,13 +264,12 @@ describe('payments.service', () => {
       const admin = await createTestUser({ role: 'admin' });
       const user = await createTestUser();
       const course = await createTestCourse(admin._id);
-      await enrollmentsService.createEnrollmentFromSubscription(user._id, course._id.toString(), new Types.ObjectId(), 'mocksessions_only');
+      await enrollmentsService.createEnrollmentFromSubscription(user._id, course._id.toString(), new Types.ObjectId());
 
       const subscription = await Subscription.create({
         userId: user._id,
         type: 'course',
         courseId: course._id,
-        tier: 'mocksessions_only',
         billingInterval: 'monthly',
         status: 'active',
         stripeCustomerId: 'cus_fake_123',
@@ -309,12 +302,11 @@ describe('payments.service', () => {
       const admin = await createTestUser({ role: 'admin' });
       const user = await createTestUser();
       const course = await createTestCourse(admin._id);
-      await enrollmentsService.createEnrollmentFromSubscription(user._id, course._id.toString(), new Types.ObjectId(), 'mocksessions_only');
+      await enrollmentsService.createEnrollmentFromSubscription(user._id, course._id.toString(), new Types.ObjectId());
       await Subscription.create({
         userId: user._id,
         type: 'course',
         courseId: course._id,
-        tier: 'mocksessions_only',
         billingInterval: 'monthly',
         status: 'active',
         stripeCustomerId: 'cus_fake_123',

@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../../shared/utils/appError';
-import { Course, ICourse, ICoursePricing, ITierPricing } from '../model/courses.model';
+import { Course, ICourse, ICoursePricing } from '../model/courses.model';
 import { CreateCourseInput, UpdateCourseInput, CourseFilterInput } from '../schema/courses.schema';
 import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
@@ -8,9 +8,9 @@ import * as subscriptionsService from '../../subscriptions/service/subscriptions
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
-// lecturesDriveFolderId / mockSessionsDriveFolderId are select:false by default
-// (never sent to public clients) — admin queries opt back in with this.
-const adminDriveFields = '+lecturesDriveFolderId +mockSessionsDriveFolderId';
+// driveFolderId is select:false by default (never sent to public clients) —
+// admin queries opt back in with this.
+const adminDriveFields = '+driveFolderId';
 
 /**
  * Admin-facing course serialization. Unlike the schema's default toJSON
@@ -33,26 +33,17 @@ export const createCourse = async (
   return toAdminCourseJSON(course);
 };
 
-const hasTierPrice = (tier?: ITierPricing): boolean =>
-  tier?.monthly != null || tier?.quarterly != null;
+const hasPrice = (pricing?: ICoursePricing): boolean =>
+  pricing?.monthly != null || pricing?.quarterly != null;
 
-// existing.pricing.<tier> is a Mongoose subdocument — spreading it directly
-// does not reliably copy its paths, so normalize to a plain object first.
-const toPlainTier = (tier?: ITierPricing): ITierPricing =>
-  tier ? { monthly: tier.monthly, quarterly: tier.quarterly } : {};
+// existing.pricing is a Mongoose subdocument — spreading it directly does
+// not reliably copy its paths, so normalize to a plain object first.
+const toPlainPricing = (pricing?: ICoursePricing): ICoursePricing =>
+  pricing ? { monthly: pricing.monthly, quarterly: pricing.quarterly } : {};
 
 export const assertCourseHasPricing = (pricing: Partial<ICoursePricing>): void => {
-  if (!hasTierPrice(pricing.mocksessions_only)) {
-    throw new AppError(
-      'At least one of monthly or quarterly price is required for the mocksessions_only tier',
-      400,
-    );
-  }
-  if (!hasTierPrice(pricing.mocksession_and_lectures)) {
-    throw new AppError(
-      'At least one of monthly or quarterly price is required for the mocksession_and_lectures tier',
-      400,
-    );
+  if (!hasPrice(pricing)) {
+    throw new AppError('At least one of monthly or quarterly price is required', 400);
   }
 };
 
@@ -65,16 +56,7 @@ export const updateCourse = async (
 
   let mergedPricing: ICoursePricing | undefined;
   if (input.pricing) {
-    mergedPricing = {
-      mocksessions_only: {
-        ...toPlainTier(existing.pricing?.mocksessions_only),
-        ...input.pricing.mocksessions_only,
-      },
-      mocksession_and_lectures: {
-        ...toPlainTier(existing.pricing?.mocksession_and_lectures),
-        ...input.pricing.mocksession_and_lectures,
-      },
-    };
+    mergedPricing = { ...toPlainPricing(existing.pricing), ...input.pricing };
     assertCourseHasPricing(mergedPricing);
   }
 
@@ -153,17 +135,17 @@ export const updateCourseThumbnail = async (
 };
 
 /**
- * Deleting a course cascades: every enrolled user is unenrolled (enrollment
- * deactivated, Drive access pulled) and any subscription still billing for
- * this course is cancelled. Both must run before the course row is removed —
- * Drive revocation needs the course's folder IDs, which no longer resolve
+ * Deleting a course cascades: every enrollment record for it is deleted
+ * (Drive access pulled first) and any subscription still billing for this
+ * course is cancelled. Both must run before the course row is removed —
+ * Drive revocation needs the course's folder ID, which no longer resolves
  * once it's gone.
  */
 export const deleteCourse = async (courseId: string): Promise<void> => {
   const course = await Course.findById(courseId);
   if (!course) throw new AppError('Course not found', 404);
 
-  await enrollmentsService.revokeAllEnrollmentsForCourse(courseId);
+  await enrollmentsService.deleteAllEnrollmentsForCourse(courseId);
   await subscriptionsService.cancelAllSubscriptionsForCourse(courseId);
 
   await Course.findByIdAndDelete(courseId);

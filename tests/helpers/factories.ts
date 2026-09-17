@@ -35,10 +35,7 @@ export const createTestCourse = async (
   return Course.create({
     title: `Test Course ${courseCounter}`,
     description: 'A course used in tests',
-    pricing: {
-      mocksessions_only: { monthly: 50 },
-      mocksession_and_lectures: { monthly: 80 },
-    },
+    pricing: { monthly: 80 },
     isPublished: true,
     createdBy,
     ...overrides,
