@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { extractDriveId } from '../../../shared/utils/googleDrive';
 
-const gbpPrice = z.coerce.number().min(0);
+export const gbpPrice = z.coerce.number().min(0);
 
-const driveFolderLink = z
+export const driveFolderLink = z
   .string()
   .min(1, 'Drive folder link or ID is required')
   .refine((val) => extractDriveId(val) !== null, {
@@ -36,7 +36,7 @@ const optionalCoursePricing = z.object({
   quarterly: gbpPrice.optional(),
 });
 
-const communityChannelLink = z
+export const communityChannelLink = z
   .string()
   .trim()
   .url('Must be a valid URL')

@@ -10,8 +10,9 @@ import { createLeakyBucketLimiter } from './shared/middleware/leakyBucket';
 
 import authRoutes from './modules/auth/routes/auth.route';
 import coursesRoutes from './modules/courses/routes/courses.routes';
+import liveCoursesRoutes from './modules/liveCourses/routes/liveCourses.routes';
 import casesRoutes from './modules/cases/routes/cases.route';
-import contentRoutes from './modules/content/routes/content.route';
+import { createContentRouter } from './modules/content/routes/content.route';
 import enrollmentsRoutes from './modules/enrollments/routes/enrollments.routes';
 import adminRoutes from './modules/enrollments/routes/admin.routes';
 import paymentsRoutes from './modules/payments/routes/payments.routes';
@@ -83,7 +84,9 @@ app.get('/health', healthLimiter, (_req, res) => {
 
 app.use(`${API}/auth`, authLimiter, authRoutes);
 app.use(`${API}/courses`, contentLimiter, coursesRoutes);
-app.use(`${API}/courses/:courseId/content`, contentLimiter, contentRoutes); // nested: /courses/:id/content
+app.use(`${API}/courses/:courseId/content`, contentLimiter, createContentRouter('Course')); // nested: /courses/:id/content
+app.use(`${API}/live-courses`, contentLimiter, liveCoursesRoutes);
+app.use(`${API}/live-courses/:courseId/content`, contentLimiter, createContentRouter('LiveCourse')); // nested: /live-courses/:id/content
 app.use(`${API}/enrollments`, contentLimiter, enrollmentsRoutes);
 app.use(`${API}/payments`, paymentsLimiter, paymentsRoutes);
 app.use(`${API}/subscriptions`, paymentsLimiter, subscriptionsRoutes);

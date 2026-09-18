@@ -3,7 +3,7 @@ import * as caseBankOverviewService from '../../cases/service/caseBankOverview.s
 import { BookingProduct } from '../../booking/model/booking.model';
 import { MockCase } from '../../cases/model/cases.model';
 import { CASE_BANK_PLAN } from '../../subscriptions/constants/plans';
-import { createTestCourse, objectId } from '../../../../tests/helpers/factories';
+import { createTestCourse, createTestLiveCourse, objectId } from '../../../../tests/helpers/factories';
 
 const baseCaseFields = (overrides: Record<string, unknown> = {}) => ({
   stationNumber: 1,
@@ -105,8 +105,9 @@ describe('catalog.service', () => {
       expect(oneOnOneProducts[0]).toMatchObject({ title: 'Career Coaching', price: 50 });
     });
 
-    it('combines courses, one-on-one sessions, and the case bank into a single list', async () => {
+    it('combines courses, live courses, one-on-one sessions, and the case bank into a single list', async () => {
       await createTestCourse(objectId(), { title: 'A Course', isPublished: true });
+      await createTestLiveCourse(objectId(), { title: 'A Live Course', isPublished: true });
       await BookingProduct.create({
         title: 'A Session',
         description: 'A one-on-one session.',
@@ -118,7 +119,19 @@ describe('catalog.service', () => {
       const products = await catalogService.getAllProducts();
       const types = products.map((p) => p.type).sort();
 
-      expect(types).toEqual(['case_bank', 'course', 'one_on_one']);
+      expect(types).toEqual(['case_bank', 'course', 'live_course', 'one_on_one']);
+    });
+
+    it('includes only published live courses', async () => {
+      const owner = objectId();
+      await createTestLiveCourse(owner, { title: 'Published Live Course', isPublished: true });
+      await createTestLiveCourse(owner, { title: 'Draft Live Course', isPublished: false });
+
+      const products = await catalogService.getAllProducts();
+      const liveCourseProducts = products.filter((p) => p.type === 'live_course');
+
+      expect(liveCourseProducts).toHaveLength(1);
+      expect(liveCourseProducts[0]).toMatchObject({ title: 'Published Live Course' });
     });
   });
 });

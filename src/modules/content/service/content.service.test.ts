@@ -3,9 +3,15 @@ jest.mock('../../../config/cloudinary', () => require('../../../../tests/mocks/c
 import { Types } from 'mongoose';
 import * as contentService from './content.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
+import * as liveCoursesService from '../../liveCourses/service/liveCourses.service';
 import { CourseContent } from '../model/content.model';
 import { cloudinaryMock, uploadBuffer } from '../../../../tests/mocks/cloudinary.mock';
-import { createTestUser, createTestCourse, objectId } from '../../../../tests/helpers/factories';
+import {
+  createTestUser,
+  createTestCourse,
+  createTestLiveCourse,
+  objectId,
+} from '../../../../tests/helpers/factories';
 
 describe('content.service', () => {
   beforeEach(() => {
@@ -176,6 +182,79 @@ describe('content.service', () => {
         resource_type: 'raw',
         type: 'authenticated',
       });
+    });
+  });
+
+  describe('live courses (courseType: LiveCourse)', () => {
+    it('uploadPdf / addDriveLink / getCourseContents scope to the live course, not a normal one', async () => {
+      const admin = await createTestUser({ role: 'admin' });
+      const liveCourse = await createTestLiveCourse(admin._id);
+      const file = { buffer: Buffer.from('pdf') } as Express.Multer.File;
+
+      await contentService.uploadPdf(
+        liveCourse._id.toString(),
+        { title: 'Live PDF', order: 0, type: 'pdf' },
+        file,
+        'LiveCourse',
+      );
+      await contentService.addDriveLink(
+        liveCourse._id.toString(),
+        { title: 'Live Recording', type: 'video', fileUrl: 'https://drive.google.com/live', order: 1 },
+        'LiveCourse',
+      );
+
+      const contents = await contentService.getCourseContents(
+        liveCourse._id.toString(),
+        admin._id,
+        'admin',
+        'LiveCourse',
+      );
+      expect(contents).toHaveLength(2);
+    });
+
+    it('an enrolled user can read live course content; an unenrolled one is rejected', async () => {
+      const admin = await createTestUser({ role: 'admin' });
+      const liveCourse = await createTestLiveCourse(admin._id);
+      const enrolledUser = await createTestUser();
+      const strangerUser = await createTestUser();
+      await liveCoursesService.manualEnroll(enrolledUser._id.toString(), liveCourse._id.toString(), admin._id);
+      await CourseContent.create({
+        courseId: liveCourse._id,
+        courseType: 'LiveCourse',
+        title: 'x',
+        type: 'video',
+        fileUrl: 'https://drive/x',
+        order: 0,
+      });
+
+      const contents = await contentService.getCourseContents(
+        liveCourse._id.toString(),
+        enrolledUser._id,
+        'user',
+        'LiveCourse',
+      );
+      expect(contents).toHaveLength(1);
+
+      await expect(
+        contentService.getCourseContents(liveCourse._id.toString(), strangerUser._id, 'user', 'LiveCourse'),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    });
+
+    it('does not leak a live course content item into a normal course content list', async () => {
+      const admin = await createTestUser({ role: 'admin' });
+      const course = await createTestCourse(admin._id);
+      const liveCourse = await createTestLiveCourse(admin._id);
+      await CourseContent.create({
+        courseId: liveCourse._id,
+        courseType: 'LiveCourse',
+        title: 'live item',
+        type: 'video',
+        fileUrl: 'https://drive/live',
+        order: 0,
+      });
+
+      const contents = await contentService.getCourseContents(course._id.toString(), admin._id, 'admin');
+      expect(contents).toHaveLength(0);
     });
   });
 });
