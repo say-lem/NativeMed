@@ -39,7 +39,7 @@ export interface PaginatedResult<T> {
 export type ContentType = 'video' | 'audio' | 'pdf';
 
 // ── Payment item types ────────────────────────────────────────────────────────
-export type PaymentItemType = 'case_bank' | 'course' | 'booking';
+export type PaymentItemType = 'case_bank' | 'course' | 'booking' | 'live_course';
 
 // ── Payment methods ───────────────────────────────────────────────────────────
 export type PaymentMethod = 'stripe';
@@ -50,7 +50,6 @@ export type SubscriptionStatus = 'active' | 'expired' | 'cancelled' | 'past_due'
 
 // ── Subscription plans ────────────────────────────────────────────────────────
 export type SubscriptionType = 'case_bank' | 'course';
-export type CourseAccessTier = 'mocksessions_only' | 'mocksession_and_lectures';
 export type BillingInterval = 'monthly' | 'quarterly';
 
 // ── Difficulty levels ─────────────────────────────────────────────────────────

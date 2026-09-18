@@ -22,7 +22,6 @@ const USER = {
   phone: '+447700900004',
   password: 'Password1',
 };
-const ACCESS_TIER = 'mocksession_and_lectures' as const;
 const MANUAL_PAYMENT_ID = new Types.ObjectId('000000000000000000000000');
 
 const LECTURES_FOLDER_ID = '10aYg5EFRmbyrhJpGbPcUhny9ST9kAL-T';
@@ -69,26 +68,20 @@ const main = async () => {
     process.exit(1);
   }
 
-  let course = await Course.findOne({ title: COURSE_TITLE }).select('+lecturesDriveFolderId +mockSessionsDriveFolderId');
+  let course = await Course.findOne({ title: COURSE_TITLE }).select('+driveFolderId');
   if (!course) {
     course = await Course.create({
       title: COURSE_TITLE,
       description:
         'Course materials for Onah Chinedum — includes lecture recordings on Google Drive and supporting PDF resources.',
-      pricing: {
-        mocksession_and_lectures: { monthly: 49.99, quarterly: 129.99 },
-        // Placeholder — no historical mocksessions_only price existed. Adjust via the update endpoint.
-        mocksessions_only: { monthly: 29.99, quarterly: 79.99 },
-      },
-      lecturesDriveFolderId: LECTURES_FOLDER_ID,
-      mockSessionsDriveFolderId: LECTURES_FOLDER_ID,
+      pricing: { monthly: 49.99, quarterly: 129.99 },
+      driveFolderId: LECTURES_FOLDER_ID,
       isPublished: true,
       createdBy: admin._id,
     });
     console.log(`📚  Created course: ${course.title} (${course._id})`);
   } else {
-    course.lecturesDriveFolderId = LECTURES_FOLDER_ID;
-    course.mockSessionsDriveFolderId = LECTURES_FOLDER_ID;
+    course.driveFolderId = LECTURES_FOLDER_ID;
     course.isPublished = true;
     await course.save();
     console.log(`📚  Updated existing course: ${course.title} (${course._id})`);
@@ -145,7 +138,6 @@ const main = async () => {
       userId: user._id,
       type: 'course',
       courseId: course._id,
-      tier: ACCESS_TIER,
       billingInterval: 'monthly',
       status: 'active',
       stripeCustomerId: `manual_cus_${user._id}`,
@@ -161,7 +153,6 @@ const main = async () => {
     user._id,
     course._id.toString(),
     subscription._id,
-    ACCESS_TIER,
   );
 
   console.log('\n─────────────────────────────────────────');
@@ -170,7 +161,6 @@ const main = async () => {
   console.log(`    Course title  : ${course.title}`);
   console.log(`    Lectures Drive: ${LECTURES_DRIVE_FOLDER}`);
   console.log(`    User email    : ${user.email}`);
-  console.log(`    Access tier   : ${ACCESS_TIER}`);
   console.log(`    Password      : ${USER.password}`);
   console.log('─────────────────────────────────────────\n');
 

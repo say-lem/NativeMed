@@ -37,21 +37,18 @@ const SEED_USERS = [
     email: 'alice.student@example.com',
     phone: '+447700900001',
     caseBank: true,
-    courseTier: 'mocksessions_only' as const,
   },
   {
     fullName: 'Bob Learner',
     email: 'bob.learner@example.com',
     phone: '+447700900002',
     caseBank: true,
-    courseTier: 'mocksession_and_lectures' as const,
   },
   {
     fullName: 'Carol Trainee',
     email: 'carol.trainee@example.com',
     phone: '+447700900003',
     caseBank: false,
-    courseTier: 'mocksessions_only' as const,
   },
 ];
 
@@ -122,7 +119,6 @@ const seed = async () => {
         userId: user._id,
         type: 'course',
         courseId: course._id,
-        tier: seedUser.courseTier,
         billingInterval: 'monthly',
         status: 'active',
         stripeCustomerId,
@@ -141,7 +137,6 @@ const seed = async () => {
         courseId: course._id,
         paymentId: MANUAL_PAYMENT_ID,
         subscriptionId: courseSub._id,
-        accessTier: seedUser.courseTier,
         source: 'payment',
         isActive: true,
         accessGrantedAt: now,
@@ -149,7 +144,7 @@ const seed = async () => {
       { upsert: true, new: true },
     );
 
-    console.log(`    ✅  Course subscription (${seedUser.courseTier}) + enrollment`);
+    console.log('    ✅  Course subscription + enrollment');
 
     if (seedUser.caseBank) {
       await Subscription.findOneAndUpdate(

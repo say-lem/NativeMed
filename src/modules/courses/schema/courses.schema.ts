@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { extractDriveId } from '../../../shared/utils/googleDrive';
 
-const gbpPrice = z.coerce.number().min(0);
+export const gbpPrice = z.coerce.number().min(0);
 
-const driveFolderLink = z
+export const driveFolderLink = z
   .string()
   .min(1, 'Drive folder link or ID is required')
   .refine((val) => extractDriveId(val) !== null, {
@@ -11,32 +11,32 @@ const driveFolderLink = z
   })
   .transform((val) => extractDriveId(val)!);
 
-const tierPricingRefine = (
+const coursePricingRefine = (
   data: { monthly?: number; quarterly?: number },
   ctx: z.RefinementCtx,
 ) => {
   if (data.monthly === undefined && data.quarterly === undefined) {
     ctx.addIssue({
       code: 'custom',
-      message: 'At least one of monthly or quarterly price is required for this tier',
+      message: 'At least one of monthly or quarterly price is required',
       path: ['monthly'],
     });
   }
 };
 
-const requiredTierPricing = z
+const requiredCoursePricing = z
   .object({
     monthly: gbpPrice.optional(),
     quarterly: gbpPrice.optional(),
   })
-  .superRefine(tierPricingRefine);
+  .superRefine(coursePricingRefine);
 
-const optionalTierPricing = z.object({
+const optionalCoursePricing = z.object({
   monthly: gbpPrice.optional(),
   quarterly: gbpPrice.optional(),
 });
 
-const communityChannelLink = z
+export const communityChannelLink = z
   .string()
   .trim()
   .url('Must be a valid URL')
@@ -47,14 +47,10 @@ export const createCourseSchema = z.object({
   title: z.string().min(3).trim(),
   description: z.string().min(10).trim(),
   detailedDescription: z.string().min(10).trim().optional(),
-  pricing: z.object({
-    mocksessions_only: requiredTierPricing,
-    mocksession_and_lectures: requiredTierPricing,
-  }),
+  pricing: requiredCoursePricing,
   isPublished: z.boolean().optional(),
   // Accept a full Drive folder URL or the raw folder ID — extracted server-side.
-  lecturesDriveFolderId: driveFolderLink,
-  mockSessionsDriveFolderId: driveFolderLink,
+  driveFolderId: driveFolderLink,
   // Community invite links — emailed to users when they enroll.
   telegramChannel: communityChannelLink,
   whatsappChannel: communityChannelLink,
@@ -64,15 +60,9 @@ export const updateCourseSchema = z.object({
   title: z.string().min(3).trim().optional(),
   description: z.string().min(10).trim().optional(),
   detailedDescription: z.string().min(10).trim().optional(),
-  pricing: z
-    .object({
-      mocksessions_only: optionalTierPricing.optional(),
-      mocksession_and_lectures: optionalTierPricing.optional(),
-    })
-    .optional(),
+  pricing: optionalCoursePricing.optional(),
   isPublished: z.boolean().optional(),
-  lecturesDriveFolderId: driveFolderLink.optional(),
-  mockSessionsDriveFolderId: driveFolderLink.optional(),
+  driveFolderId: driveFolderLink.optional(),
   telegramChannel: communityChannelLink,
   whatsappChannel: communityChannelLink,
 });

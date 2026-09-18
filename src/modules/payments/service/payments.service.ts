@@ -3,12 +3,7 @@ import Stripe from 'stripe';
 import { env } from '../../../config/env';
 import { stripe } from '../../../config/stripe';
 import { AppError } from '../../../shared/utils/appError';
-import {
-  BillingInterval,
-  CourseAccessTier,
-  SubscriptionType,
-} from '../../../shared/types';
-import { formatCourseAccessTier } from '../../../shared/constants/courseAccess';
+import { BillingInterval, SubscriptionType } from '../../../shared/types';
 import { User } from '../../auth/model/auth.model';
 import { Course } from '../../courses/model/courses.model';
 import { Payment } from '../model/payments.model';
@@ -17,6 +12,7 @@ import { resolveCaseBankPlanPrice } from '../../subscriptions/constants/plans';
 import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
 import * as bookingService from '../../booking/service/booking.service';
+import * as liveCoursesService from '../../liveCourses/service/liveCourses.service';
 import {
   getInvoicePaymentIntentId,
   getInvoiceSubscriptionId,
@@ -28,7 +24,6 @@ export interface CreateCheckoutInput {
   userId: Types.ObjectId;
   email: string;
   type: SubscriptionType;
-  tier?: CourseAccessTier;
   interval: BillingInterval;
   courseId?: string;
   successUrl?: string;
@@ -36,7 +31,7 @@ export interface CreateCheckoutInput {
 }
 
 export const createCheckoutSession = async (input: CreateCheckoutInput) => {
-  const { userId, type, tier, interval, courseId } = input;
+  const { userId, type, interval, courseId } = input;
 
   await subscriptionsService.assertNoConflictingSubscription(userId, type, courseId);
 
@@ -49,13 +44,11 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
     interval,
   };
   if (courseId) metadata.courseId = courseId;
-  if (tier) metadata.tier = tier;
 
   let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
 
   if (type === 'course') {
     if (!courseId) throw new AppError('courseId is required for course subscriptions', 400);
-    if (!tier) throw new AppError('tier is required for course subscriptions', 400);
 
     const course = await Course.findById(courseId).select(
       'title pricing isPublished paymentsPaused',
@@ -64,12 +57,9 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
     if (!course.isPublished) throw new AppError('This course is not available for purchase', 400);
     if (course.paymentsPaused) throw new AppError('Payments are currently paused for this course', 400);
 
-    const priceGbp = course.pricing?.[tier]?.[interval];
+    const priceGbp = course.pricing?.[interval];
     if (priceGbp == null) {
-      throw new AppError(
-        `This course is not available for ${interval} billing on the ${tier} tier`,
-        400,
-      );
+      throw new AppError(`This course is not available for ${interval} billing`, 400);
     }
 
     const unitAmount = Math.round(priceGbp * 100);
@@ -77,7 +67,6 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
       throw new AppError('This course does not have a valid purchase price', 400);
     }
 
-    const tierLabel = formatCourseAccessTier(tier);
     const recurring =
       interval === 'monthly'
         ? ({ interval: 'month' } as const)
@@ -89,8 +78,8 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
           currency: 'gbp',
           unit_amount: unitAmount,
           product_data: {
-            name: `${course.title} (${tierLabel})`,
-            metadata: { courseId: course._id.toString(), tier },
+            name: course.title,
+            metadata: { courseId: course._id.toString() },
           },
           recurring,
         },
@@ -121,27 +110,24 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
 export interface ChangeCoursePlanInput {
   userId: Types.ObjectId;
   courseId: string;
-  newTier?: CourseAccessTier;
-  newInterval?: BillingInterval;
+  newInterval: BillingInterval;
 }
 
 /**
- * Switch a user's course subscription to a new tier and/or billing interval,
- * in place — course subscriptions run on Stripe's inline price_data (no
- * pre-created Price object), and subscriptions.update() accepts the same
- * inline-price mechanism via items[].price_data, so this updates the
- * existing subscription item rather than cancelling and re-checking-out.
+ * Switch a user's course subscription to a new billing interval, in place —
+ * course subscriptions run on Stripe's inline price_data (no pre-created
+ * Price object), and subscriptions.update() accepts the same inline-price
+ * mechanism via items[].price_data, so this updates the existing
+ * subscription item rather than cancelling and re-checking-out.
  */
 export const changeCoursePlan = async (input: ChangeCoursePlanInput) => {
-  const { userId, courseId, newTier, newInterval } = input;
+  const { userId, courseId, newInterval } = input;
 
   const subscription = await subscriptionsService.getActiveCourseSubscription(userId, courseId);
   if (!subscription) throw new AppError('No active subscription found', 404);
   subscriptionsService.assertNotManual(subscription);
 
-  const targetTier = newTier ?? subscription.tier!;
-  const targetInterval = newInterval ?? subscription.billingInterval;
-  if (targetTier === subscription.tier && targetInterval === subscription.billingInterval) {
+  if (newInterval === subscription.billingInterval) {
     throw new AppError('No change requested', 400);
   }
 
@@ -149,12 +135,9 @@ export const changeCoursePlan = async (input: ChangeCoursePlanInput) => {
   if (!course) throw new AppError('Course not found', 404);
   if (course.paymentsPaused) throw new AppError('Payments are currently paused for this course', 400);
 
-  const priceGbp = course.pricing?.[targetTier]?.[targetInterval];
+  const priceGbp = course.pricing?.[newInterval];
   if (priceGbp == null) {
-    throw new AppError(
-      `This course is not available for ${targetInterval} billing on the ${targetTier} tier`,
-      400,
-    );
+    throw new AppError(`This course is not available for ${newInterval} billing`, 400);
   }
 
   const unitAmount = Math.round(priceGbp * 100);
@@ -166,12 +149,6 @@ export const changeCoursePlan = async (input: ChangeCoursePlanInput) => {
   const item = stripeSub.items.data[0];
   const productId = typeof item.price.product === 'string' ? item.price.product : item.price.product.id;
 
-  // Keep the ad-hoc Product's display name in sync with the new tier
-  await stripe.products.update(productId, {
-    name: `${course.title} (${formatCourseAccessTier(targetTier)})`,
-    metadata: { courseId: course._id.toString(), tier: targetTier },
-  });
-
   await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
     items: [
       {
@@ -180,7 +157,7 @@ export const changeCoursePlan = async (input: ChangeCoursePlanInput) => {
           currency: 'gbp',
           unit_amount: unitAmount,
           recurring:
-            targetInterval === 'monthly'
+            newInterval === 'monthly'
               ? { interval: 'month' }
               : { interval: 'month', interval_count: 3 },
           product: productId,
@@ -188,22 +165,20 @@ export const changeCoursePlan = async (input: ChangeCoursePlanInput) => {
       },
     ],
     proration_behavior: 'create_prorations',
-    // syncSubscriptionFromStripe() re-derives tier/interval from this
+    // syncSubscriptionFromStripe() re-derives billingInterval from this
     // subscription's Stripe metadata on every future invoice.payment_succeeded
     // webhook — without updating it here too, the next billing cycle would
-    // silently revert the local doc's tier/billingInterval back to the old values.
-    metadata: { ...stripeSub.metadata, tier: targetTier, interval: targetInterval },
+    // silently revert the local doc's billingInterval back to the old value.
+    metadata: { ...stripeSub.metadata, interval: newInterval },
   });
 
-  subscription.tier = targetTier;
-  subscription.billingInterval = targetInterval;
+  subscription.billingInterval = newInterval;
   await subscription.save();
 
   await enrollmentsService.createEnrollmentFromSubscription(
     userId,
     courseId,
     subscription._id,
-    targetTier,
   );
 
   return subscriptionsService.getCourseSubscriptionStatus(userId, courseId);
@@ -287,6 +262,11 @@ const handleCheckoutCompleted = async (
     return;
   }
 
+  if (session.mode === 'payment' && session.metadata?.type === 'live_course') {
+    await handleLiveCourseCheckoutCompleted(session);
+    return;
+  }
+
   if (session.mode !== 'subscription' || !session.subscription) return;
 
   const stripeSub = await stripe.subscriptions.retrieve(session.subscription as string);
@@ -310,6 +290,33 @@ const handleBookingCheckoutCompleted = async (session: Stripe.Checkout.Session) 
       status: 'succeeded',
       method: 'stripe',
       itemType: 'booking',
+      stripeCheckoutSessionId: session.id,
+      stripePaymentIntentId:
+        typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
+      paidAt: new Date(),
+    },
+    { upsert: true, new: true },
+  );
+};
+
+// One-time live course purchase — confirm the LiveCourseEnrollment (Drive
+// access + confirmation email, owned by the liveCourses module) then record
+// the Payment (owned here, same as every other item type). Mirrors
+// handleBookingCheckoutCompleted above.
+const handleLiveCourseCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
+  const enrollment = await liveCoursesService.confirmLiveCoursePurchase(session);
+  if (!enrollment) return;
+
+  await Payment.findOneAndUpdate(
+    { stripeCheckoutSessionId: session.id },
+    {
+      userId: enrollment.userId,
+      liveCourseId: enrollment.courseId,
+      amount: session.amount_total ?? 0,
+      currency: session.currency ?? 'gbp',
+      status: 'succeeded',
+      method: 'stripe',
+      itemType: 'live_course',
       stripeCheckoutSessionId: session.id,
       stripePaymentIntentId:
         typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
@@ -347,7 +354,6 @@ const handleInvoicePaymentSucceeded = async (invoice: Stripe.Invoice, eventCreat
       method: 'stripe',
       itemType: subscription.type,
       courseId: subscription.courseId,
-      tier: subscription.tier,
       billingInterval: subscription.billingInterval,
       stripeInvoiceId: invoice.id,
       stripePaymentIntentId: getInvoicePaymentIntentId(invoice),
@@ -399,7 +405,6 @@ const handleInvoicePaymentFailed = async (invoice: Stripe.Invoice) => {
       method: 'stripe',
       itemType: subscription.type,
       courseId: subscription.courseId,
-      tier: subscription.tier,
       billingInterval: subscription.billingInterval,
       stripeInvoiceId: invoice.id,
     },
@@ -441,7 +446,6 @@ const syncSubscriptionFromStripe = async (
     return null;
   }
 
-  const tier = metadata.tier as CourseAccessTier | undefined;
   const courseId = metadata.courseId;
   const period = getSubscriptionPeriod(stripeSub);
 
@@ -450,7 +454,6 @@ const syncSubscriptionFromStripe = async (
       userId: new Types.ObjectId(userId),
       type,
       courseId: courseId ? new Types.ObjectId(courseId) : undefined,
-      tier,
       billingInterval: interval,
       stripeCustomerId:
         typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id,
@@ -471,12 +474,11 @@ const grantAccessForSubscription = async (subscription: ISubscription | null) =>
   if (!subscription) return;
   if (subscription.status !== 'active' && subscription.status !== 'past_due') return;
 
-  if (subscription.type === 'course' && subscription.courseId && subscription.tier) {
+  if (subscription.type === 'course' && subscription.courseId) {
     await enrollmentsService.createEnrollmentFromSubscription(
       subscription.userId as Types.ObjectId,
       subscription.courseId.toString(),
       subscription._id,
-      subscription.tier,
     );
   }
 };

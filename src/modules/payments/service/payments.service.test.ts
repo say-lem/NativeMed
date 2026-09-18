@@ -4,11 +4,17 @@ import { Types } from 'mongoose';
 import type Stripe from 'stripe';
 import * as paymentsService from './payments.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
+import * as liveCoursesService from '../../liveCourses/service/liveCourses.service';
 import { Payment } from '../model/payments.model';
 import { Subscription } from '../../subscriptions/model/subscriptions.model';
 import { BookingProduct, SessionBooking } from '../../booking/model/booking.model';
 import { stripeMock } from '../../../../tests/mocks/stripe.mock';
-import { createTestUser, createTestCourse, objectId } from '../../../../tests/helpers/factories';
+import {
+  createTestUser,
+  createTestCourse,
+  createTestLiveCourse,
+  objectId,
+} from '../../../../tests/helpers/factories';
 
 const DAY = 24 * 60 * 60 * 1000;
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -54,7 +60,7 @@ describe('payments.service', () => {
     it('builds a course checkout session with inline price_data', async () => {
       const admin = await createTestUser({ role: 'admin' });
       const course = await createTestCourse(admin._id, {
-        pricing: { mocksessions_only: { monthly: 40 }, mocksession_and_lectures: { monthly: 70 } },
+        pricing: { monthly: 40 },
       });
       const userId = objectId();
       stripeMock.checkout.sessions.create.mockResolvedValueOnce({ id: 'cs_1', url: 'https://checkout.stripe.com/cs_1' });
@@ -63,7 +69,6 @@ describe('payments.service', () => {
         userId,
         email: 'buyer@example.com',
         type: 'course',
-        tier: 'mocksessions_only',
         interval: 'monthly',
         courseId: course._id.toString(),
       });
@@ -82,7 +87,6 @@ describe('payments.service', () => {
           userId: objectId(),
           email: 'buyer@example.com',
           type: 'course',
-          tier: 'mocksessions_only',
           interval: 'monthly',
           courseId: course._id.toString(),
         }),
@@ -98,17 +102,16 @@ describe('payments.service', () => {
           userId: objectId(),
           email: 'buyer@example.com',
           type: 'course',
-          tier: 'mocksessions_only',
           interval: 'monthly',
           courseId: course._id.toString(),
         }),
       ).rejects.toMatchObject({ statusCode: 400 });
     });
 
-    it('rejects when the requested tier/interval has no price set', async () => {
+    it('rejects when the requested interval has no price set', async () => {
       const admin = await createTestUser({ role: 'admin' });
       const course = await createTestCourse(admin._id, {
-        pricing: { mocksessions_only: { monthly: 40 }, mocksession_and_lectures: { monthly: 70 } },
+        pricing: { monthly: 40 },
       });
 
       await expect(
@@ -116,7 +119,6 @@ describe('payments.service', () => {
           userId: objectId(),
           email: 'buyer@example.com',
           type: 'course',
-          tier: 'mocksessions_only',
           interval: 'quarterly', // not set on this course
           courseId: course._id.toString(),
         }),
@@ -126,14 +128,13 @@ describe('payments.service', () => {
     it('rejects a second checkout when a conflicting subscription already exists', async () => {
       const admin = await createTestUser({ role: 'admin' });
       const course = await createTestCourse(admin._id, {
-        pricing: { mocksessions_only: { monthly: 40 }, mocksession_and_lectures: { monthly: 70 } },
+        pricing: { monthly: 40 },
       });
       const userId = objectId();
       await Subscription.create({
         userId,
         type: 'course',
         courseId: course._id,
-        tier: 'mocksessions_only',
         billingInterval: 'monthly',
         status: 'active',
         stripeCustomerId: 'cus_x',
@@ -147,7 +148,6 @@ describe('payments.service', () => {
           userId,
           email: 'buyer@example.com',
           type: 'course',
-          tier: 'mocksessions_only',
           interval: 'monthly',
           courseId: course._id.toString(),
         }),
@@ -178,7 +178,7 @@ describe('payments.service', () => {
 
       stripeMock.subscriptions.retrieve.mockResolvedValueOnce(
         fakeStripeSubscription({
-          metadata: { userId: user._id.toString(), type: 'course', interval: 'monthly', courseId: course._id.toString(), tier: 'mocksessions_only' },
+          metadata: { userId: user._id.toString(), type: 'course', interval: 'monthly', courseId: course._id.toString() },
         }),
       );
 
@@ -270,13 +270,12 @@ describe('payments.service', () => {
       const admin = await createTestUser({ role: 'admin' });
       const user = await createTestUser();
       const course = await createTestCourse(admin._id);
-      await enrollmentsService.createEnrollmentFromSubscription(user._id, course._id.toString(), new Types.ObjectId(), 'mocksessions_only');
+      await enrollmentsService.createEnrollmentFromSubscription(user._id, course._id.toString(), new Types.ObjectId());
 
       const subscription = await Subscription.create({
         userId: user._id,
         type: 'course',
         courseId: course._id,
-        tier: 'mocksessions_only',
         billingInterval: 'monthly',
         status: 'active',
         stripeCustomerId: 'cus_fake_123',
@@ -309,12 +308,11 @@ describe('payments.service', () => {
       const admin = await createTestUser({ role: 'admin' });
       const user = await createTestUser();
       const course = await createTestCourse(admin._id);
-      await enrollmentsService.createEnrollmentFromSubscription(user._id, course._id.toString(), new Types.ObjectId(), 'mocksessions_only');
+      await enrollmentsService.createEnrollmentFromSubscription(user._id, course._id.toString(), new Types.ObjectId());
       await Subscription.create({
         userId: user._id,
         type: 'course',
         courseId: course._id,
-        tier: 'mocksessions_only',
         billingInterval: 'monthly',
         status: 'active',
         stripeCustomerId: 'cus_fake_123',
@@ -379,6 +377,39 @@ describe('payments.service', () => {
         stripePaymentIntentId: 'pi_fake_booking_1',
       });
       expect(payment!.bookingId!.toString()).toBe(booking._id.toString());
+    });
+
+    it('checkout.session.completed (mode: payment, live_course) grants access and records a Payment', async () => {
+      const admin = await createTestUser({ role: 'admin' });
+      const user = await createTestUser();
+      const liveCourse = await createTestLiveCourse(admin._id, { price: 150 });
+
+      await paymentsService.handleWebhookEvent({
+        type: 'checkout.session.completed',
+        created: nowSeconds(),
+        data: {
+          object: {
+            id: 'cs_fake_live_1',
+            mode: 'payment',
+            amount_total: 15000,
+            currency: 'gbp',
+            payment_intent: 'pi_fake_live_1',
+            metadata: { type: 'live_course', courseId: liveCourse._id.toString(), userId: user._id.toString() },
+          },
+        },
+      } as unknown as Stripe.Event);
+
+      const enrolled = await liveCoursesService.isEnrolled(user._id, liveCourse._id.toString());
+      expect(enrolled).toBe(true);
+
+      const payment = await Payment.findOne({ stripeCheckoutSessionId: 'cs_fake_live_1' });
+      expect(payment).toMatchObject({
+        itemType: 'live_course',
+        status: 'succeeded',
+        amount: 15000,
+        stripePaymentIntentId: 'pi_fake_live_1',
+      });
+      expect(payment!.liveCourseId!.toString()).toBe(liveCourse._id.toString());
     });
 
     it('checkout.session.expired (mode: payment, booking) releases the held slot', async () => {

@@ -3,13 +3,37 @@ import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/clo
 import { AppError } from '../../../shared/utils/appError';
 import { UserRole } from '../../../shared/types';
 import { Course } from '../../courses/model/courses.model';
-import { isEnrolled } from '../../enrollments/service/enrollments.service';
-import { CourseContent } from '../model/content.model';
+import { LiveCourse } from '../../liveCourses/model/liveCourses.model';
+import { isEnrolled as isEnrolledInCourse } from '../../enrollments/service/enrollments.service';
+import { isEnrolled as isEnrolledInLiveCourse } from '../../liveCourses/service/liveCourses.service';
+import { CourseContent, ContentCourseType } from '../model/content.model';
 import {
   UploadPdfInput,
   AddDriveLinkInput,
   UpdateContentInput,
 } from '../schema/content.schema';
+
+const isEnrolledFor = (courseType: ContentCourseType) =>
+  courseType === 'LiveCourse' ? isEnrolledInLiveCourse : isEnrolledInCourse;
+
+const NOT_FOUND_MESSAGE: Record<ContentCourseType, string> = {
+  Course: 'Course not found',
+  LiveCourse: 'Live course not found',
+};
+
+// Mongoose's two Model constructors have incompatible overload sets once
+// stored in a shared union-typed variable — branching per call keeps each
+// query resolving against its own concrete model.
+const findCourseOwner = (
+  courseId: string,
+  courseType: ContentCourseType,
+): Promise<{ createdBy: Types.ObjectId } | null> =>
+  courseType === 'LiveCourse'
+    ? LiveCourse.findById(courseId).select('createdBy')
+    : Course.findById(courseId).select('createdBy');
+
+const courseExists = (courseId: string, courseType: ContentCourseType): Promise<unknown> =>
+  courseType === 'LiveCourse' ? LiveCourse.findById(courseId) : Course.findById(courseId);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IDOR guard — called before any content read
@@ -19,14 +43,15 @@ const assertCanReadContent = async (
   courseId: string,
   userId: Types.ObjectId,
   role: UserRole,
+  courseType: ContentCourseType = 'Course',
 ): Promise<void> => {
   if (role === 'admin') return;
 
-  const course = await Course.findById(courseId).select('createdBy');
-  if (!course) throw new AppError('Course not found', 404);
+  const course = await findCourseOwner(courseId, courseType);
+  if (!course) throw new AppError(NOT_FOUND_MESSAGE[courseType], 404);
   if (course.createdBy.toString() === userId.toString()) return;
 
-  if (await isEnrolled(userId, courseId)) return;
+  if (await isEnrolledFor(courseType)(userId, courseId)) return;
 
   throw new AppError(
     'You do not have access to this content. Enroll in the course first.',
@@ -42,9 +67,10 @@ export const uploadPdf = async (
   courseId: string,
   input: UploadPdfInput,
   file: Express.Multer.File,
+  courseType: ContentCourseType = 'Course',
 ) => {
-  const course = await Course.findById(courseId);
-  if (!course) throw new AppError('Course not found', 404);
+  const course = await courseExists(courseId, courseType);
+  if (!course) throw new AppError(NOT_FOUND_MESSAGE[courseType], 404);
 
   const result = await uploadBuffer(file.buffer, {
     folder:          CloudinaryFolders.COURSE_PDFS,
@@ -60,6 +86,7 @@ export const uploadPdf = async (
 
   return CourseContent.create({
     courseId,
+    courseType,
     title:    input.title,
     type:     'pdf',
     fileUrl:  result.secure_url,
@@ -72,18 +99,21 @@ export const uploadPdf = async (
 // Admin — Video / Audio Drive link entry
 // The admin manually adds these files to Google Drive and provides the
 // shareable link here so the content appears in the course outline.
-// Drive folder access is granted on enrollment (see enrollments.service.ts).
+// Drive folder access is granted on enrollment (see enrollments.service.ts /
+// liveCourses.service.ts).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const addDriveLink = async (
   courseId: string,
   input: AddDriveLinkInput,
+  courseType: ContentCourseType = 'Course',
 ) => {
-  const course = await Course.findById(courseId);
-  if (!course) throw new AppError('Course not found', 404);
+  const course = await courseExists(courseId, courseType);
+  if (!course) throw new AppError(NOT_FOUND_MESSAGE[courseType], 404);
 
   return CourseContent.create({
     courseId,
+    courseType,
     title:    input.title,
     type:     input.type,   // 'video' | 'audio'
     fileUrl:  input.fileUrl, // Google Drive share link
@@ -154,9 +184,12 @@ export const getCourseContents = async (
   courseId: string,
   userId: Types.ObjectId,
   role: UserRole,
+  courseType: ContentCourseType = 'Course',
 ) => {
-  await assertCanReadContent(courseId, userId, role);
-  const contents = await CourseContent.find({ courseId }).select('+publicId').sort({ order: 1 });
+  await assertCanReadContent(courseId, userId, role, courseType);
+  const contents = await CourseContent.find({ courseId, courseType })
+    .select('+publicId')
+    .sort({ order: 1 });
 
   contents.forEach((content) => {
     if (content.type === 'pdf' && content.publicId) {
@@ -174,7 +207,7 @@ export const getContentById = async (
 ) => {
   const content = await CourseContent.findById(contentId).select('+publicId');
   if (!content) throw new AppError('Content not found', 404);
-  await assertCanReadContent(content.courseId.toString(), userId, role);
+  await assertCanReadContent(content.courseId.toString(), userId, role, content.courseType);
 
   if (content.type === 'pdf' && content.publicId) {
     content.fileUrl = getPdfDeliveryUrl(content.publicId);

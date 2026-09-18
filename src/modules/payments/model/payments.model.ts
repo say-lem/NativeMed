@@ -1,7 +1,6 @@
 import { Schema, model, Document, Types } from 'mongoose';
 import {
   BillingInterval,
-  CourseAccessTier,
   PaymentItemType,
   PaymentMethod,
   PaymentStatus,
@@ -18,7 +17,7 @@ export interface IPayment extends Document {
   itemType: PaymentItemType;
   courseId?: Types.ObjectId;
   bookingId?: Types.ObjectId;
-  tier?: CourseAccessTier;
+  liveCourseId?: Types.ObjectId;
   billingInterval?: BillingInterval;
   stripeInvoiceId?: string;
   stripePaymentIntentId?: string;
@@ -40,10 +39,10 @@ const paymentSchema = new Schema<IPayment>(
       default: 'pending',
     },
     method:                  { type: String, enum: ['stripe'], default: 'stripe' },
-    itemType:                { type: String, enum: ['case_bank', 'course', 'booking'], required: true },
+    itemType:                { type: String, enum: ['case_bank', 'course', 'booking', 'live_course'], required: true },
     courseId:                { type: Schema.Types.ObjectId, ref: 'Course' },
     bookingId:               { type: Schema.Types.ObjectId, ref: 'SessionBooking' },
-    tier:                    { type: String, enum: ['mocksessions_only', 'mocksession_and_lectures'] },
+    liveCourseId:            { type: Schema.Types.ObjectId, ref: 'LiveCourse' },
     billingInterval:         { type: String, enum: ['monthly', 'quarterly'] },
     stripeInvoiceId:         { type: String },
     stripePaymentIntentId:   { type: String },
