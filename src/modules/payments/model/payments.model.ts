@@ -17,6 +17,7 @@ export interface IPayment extends Document {
   itemType: PaymentItemType;
   courseId?: Types.ObjectId;
   bookingId?: Types.ObjectId;
+  liveCourseId?: Types.ObjectId;
   billingInterval?: BillingInterval;
   stripeInvoiceId?: string;
   stripePaymentIntentId?: string;
@@ -38,9 +39,10 @@ const paymentSchema = new Schema<IPayment>(
       default: 'pending',
     },
     method:                  { type: String, enum: ['stripe'], default: 'stripe' },
-    itemType:                { type: String, enum: ['case_bank', 'course', 'booking'], required: true },
+    itemType:                { type: String, enum: ['case_bank', 'course', 'booking', 'live_course'], required: true },
     courseId:                { type: Schema.Types.ObjectId, ref: 'Course' },
     bookingId:               { type: Schema.Types.ObjectId, ref: 'SessionBooking' },
+    liveCourseId:            { type: Schema.Types.ObjectId, ref: 'LiveCourse' },
     billingInterval:         { type: String, enum: ['monthly', 'quarterly'] },
     stripeInvoiceId:         { type: String },
     stripePaymentIntentId:   { type: String },

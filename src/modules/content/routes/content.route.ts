@@ -13,39 +13,47 @@ import {
   concurrencyGuard as concurrencyGuardMiddleware,
 } from '../upload/content.upload';
 import * as contentController from '../controller/content.controller';
+import { ContentCourseType } from '../model/content.model';
 
-const router = Router({ mergeParams: true }); // inherits :courseId from parent
+// This router is mounted twice — once under /courses/:courseId/content
+// ('Course') and once under /live-courses/:courseId/content ('LiveCourse') —
+// so both course types share one content list, one upload flow, and one
+// IDOR guard instead of duplicating the whole module.
+export const createContentRouter = (courseType: ContentCourseType) => {
+  const router = Router({ mergeParams: true }); // inherits :courseId from parent
+  const controller = contentController.createContentController(courseType);
 
-// ── Admin writes (static paths before /:id) ───────────────────────────────────
+  // ── Admin writes (static paths before /:id) ───────────────────────────────
 
-// ── Admin: upload a PDF (Cloudinary) ──────────────────────────────────────────
-router.post(
-  '/upload-pdf',
-  authenticate,
-  authorize('admin'),
-  uploadRateLimiterMiddleware,
-  concurrencyGuardMiddleware,
-  uploadPdfMiddleware.single('file'),
-  validate(uploadPdfSchema),
-  contentController.uploadPdf,
-);
+  // ── Admin: upload a PDF (Cloudinary) ──────────────────────────────────────
+  router.post(
+    '/upload-pdf',
+    authenticate,
+    authorize('admin'),
+    uploadRateLimiterMiddleware,
+    concurrencyGuardMiddleware,
+    uploadPdfMiddleware.single('file'),
+    validate(uploadPdfSchema),
+    controller.uploadPdf,
+  );
 
-// ── Admin: register a Google Drive video/audio link ───────────────────────────
-// No file upload — admin pastes the Drive share link they created manually.
-router.post(
-  '/drive-link',
-  authenticate,
-  authorize('admin'),
-  validate(addDriveLinkSchema),
-  contentController.addDriveLink,
-);
+  // ── Admin: register a Google Drive video/audio link ───────────────────────
+  // No file upload — admin pastes the Drive share link they created manually.
+  router.post(
+    '/drive-link',
+    authenticate,
+    authorize('admin'),
+    validate(addDriveLinkSchema),
+    controller.addDriveLink,
+  );
 
-// ── Enrolled users (reads) ────────────────────────────────────────────────────
-router.get('/', authenticate, contentController.getCourseContents);
-router.get('/:id', authenticate, contentController.getContentById);
+  // ── Enrolled users (reads) ─────────────────────────────────────────────────
+  router.get('/', authenticate, controller.getCourseContents);
+  router.get('/:id', authenticate, contentController.getContentById);
 
-// ── Admin: update metadata / delete ───────────────────────────────────────────
-router.patch('/:id', authenticate, authorize('admin'), validate(updateContentSchema), contentController.updateContent);
-router.delete('/:id', authenticate, authorize('admin'), contentController.deleteContent);
+  // ── Admin: update metadata / delete ───────────────────────────────────────
+  router.patch('/:id', authenticate, authorize('admin'), validate(updateContentSchema), contentController.updateContent);
+  router.delete('/:id', authenticate, authorize('admin'), contentController.deleteContent);
 
-export default router;
+  return router;
+};

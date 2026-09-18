@@ -4,11 +4,17 @@ import { Types } from 'mongoose';
 import type Stripe from 'stripe';
 import * as paymentsService from './payments.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
+import * as liveCoursesService from '../../liveCourses/service/liveCourses.service';
 import { Payment } from '../model/payments.model';
 import { Subscription } from '../../subscriptions/model/subscriptions.model';
 import { BookingProduct, SessionBooking } from '../../booking/model/booking.model';
 import { stripeMock } from '../../../../tests/mocks/stripe.mock';
-import { createTestUser, createTestCourse, objectId } from '../../../../tests/helpers/factories';
+import {
+  createTestUser,
+  createTestCourse,
+  createTestLiveCourse,
+  objectId,
+} from '../../../../tests/helpers/factories';
 
 const DAY = 24 * 60 * 60 * 1000;
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -371,6 +377,39 @@ describe('payments.service', () => {
         stripePaymentIntentId: 'pi_fake_booking_1',
       });
       expect(payment!.bookingId!.toString()).toBe(booking._id.toString());
+    });
+
+    it('checkout.session.completed (mode: payment, live_course) grants access and records a Payment', async () => {
+      const admin = await createTestUser({ role: 'admin' });
+      const user = await createTestUser();
+      const liveCourse = await createTestLiveCourse(admin._id, { price: 150 });
+
+      await paymentsService.handleWebhookEvent({
+        type: 'checkout.session.completed',
+        created: nowSeconds(),
+        data: {
+          object: {
+            id: 'cs_fake_live_1',
+            mode: 'payment',
+            amount_total: 15000,
+            currency: 'gbp',
+            payment_intent: 'pi_fake_live_1',
+            metadata: { type: 'live_course', courseId: liveCourse._id.toString(), userId: user._id.toString() },
+          },
+        },
+      } as unknown as Stripe.Event);
+
+      const enrolled = await liveCoursesService.isEnrolled(user._id, liveCourse._id.toString());
+      expect(enrolled).toBe(true);
+
+      const payment = await Payment.findOne({ stripeCheckoutSessionId: 'cs_fake_live_1' });
+      expect(payment).toMatchObject({
+        itemType: 'live_course',
+        status: 'succeeded',
+        amount: 15000,
+        stripePaymentIntentId: 'pi_fake_live_1',
+      });
+      expect(payment!.liveCourseId!.toString()).toBe(liveCourse._id.toString());
     });
 
     it('checkout.session.expired (mode: payment, booking) releases the held slot', async () => {

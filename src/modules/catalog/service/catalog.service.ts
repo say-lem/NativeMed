@@ -1,4 +1,5 @@
 import * as coursesService from '../../courses/service/courses.service';
+import * as liveCoursesService from '../../liveCourses/service/liveCourses.service';
 import * as caseBankOverviewService from '../../cases/service/caseBankOverview.service';
 import { BookingProduct } from '../../booking/model/booking.model';
 import { MockCase } from '../../cases/model/cases.model';
@@ -6,13 +7,15 @@ import { CASE_BANK_PLAN } from '../../subscriptions/constants/plans';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public catalog — everything a user can pay for on the platform, in one list:
-// courses, one-on-one booking sessions, and the case bank. Read-only, no
-// persistence of its own — it aggregates the other modules' public data.
+// courses, live courses, one-on-one booking sessions, and the case bank.
+// Read-only, no persistence of its own — it aggregates the other modules'
+// public data.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const getAllProducts = async () => {
-  const [courses, bookingProducts, caseCount, caseBankOverview] = await Promise.all([
+  const [courses, liveCourses, bookingProducts, caseCount, caseBankOverview] = await Promise.all([
     coursesService.getAllPublished(),
+    liveCoursesService.getAllPublishedLiveCourses(),
     BookingProduct.find({ isPublished: true })
       .select('title description price')
       .sort({ createdAt: -1 }),
@@ -27,6 +30,17 @@ export const getAllProducts = async () => {
     description: course.description,
     thumbnailUrl: course.thumbnailUrl,
     pricing: course.pricing,
+  }));
+
+  const liveCourseProducts = liveCourses.map((course) => ({
+    type: 'live_course' as const,
+    _id: course._id,
+    title: course.title,
+    description: course.description,
+    thumbnailUrl: course.thumbnailUrl,
+    price: course.price,
+    startDate: course.startDate,
+    endDate: course.endDate,
   }));
 
   const oneOnOneProducts = bookingProducts.map((product) => ({
@@ -51,5 +65,5 @@ export const getAllProducts = async () => {
     caseCount,
   };
 
-  return [...courseProducts, ...oneOnOneProducts, caseBankProduct];
+  return [...courseProducts, ...liveCourseProducts, ...oneOnOneProducts, caseBankProduct];
 };

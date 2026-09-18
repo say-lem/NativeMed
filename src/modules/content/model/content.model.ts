@@ -1,9 +1,15 @@
 import { Schema, model, Document, Types } from 'mongoose';
 import { ContentType } from '../../../shared/types';
 
+// Which parent collection courseId points into — lets one CourseContent
+// collection serve both normal courses (subscription-based) and live courses
+// (one-time payment), via Mongoose's dynamic ref (refPath).
+export type ContentCourseType = 'Course' | 'LiveCourse';
+
 export interface ICourseContent extends Document {
   _id: Types.ObjectId;
   courseId: Types.ObjectId;
+  courseType: ContentCourseType;
   title: string;
   type: ContentType;
   fileUrl: string;
@@ -16,14 +22,16 @@ export interface ICourseContent extends Document {
 
 const courseContentSchema = new Schema<ICourseContent>(
   {
-    courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
-    title:    { type: String, required: true, trim: true },
-    type:     { type: String, enum: ['video', 'audio', 'pdf'], required: true },
-    fileUrl:  { type: String, required: true },
+    courseId:   { type: Schema.Types.ObjectId, required: true, refPath: 'courseType' },
+    // Defaults to 'Course' so existing rows (predating live courses) resolve unchanged.
+    courseType: { type: String, enum: ['Course', 'LiveCourse'], default: 'Course' },
+    title:      { type: String, required: true, trim: true },
+    type:       { type: String, enum: ['video', 'audio', 'pdf'], required: true },
+    fileUrl:    { type: String, required: true },
     // For PDFs: Cloudinary public_id (for deletion). Not needed for video/audio (Drive links).
-    publicId: { type: String, select: false, default: '' },
-    duration: { type: Number },
-    order:    { type: Number, required: true, default: 0 },
+    publicId:   { type: String, select: false, default: '' },
+    duration:   { type: Number },
+    order:      { type: Number, required: true, default: 0 },
   },
   { timestamps: true },
 );

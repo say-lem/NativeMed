@@ -12,6 +12,7 @@ import { resolveCaseBankPlanPrice } from '../../subscriptions/constants/plans';
 import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
 import * as bookingService from '../../booking/service/booking.service';
+import * as liveCoursesService from '../../liveCourses/service/liveCourses.service';
 import {
   getInvoicePaymentIntentId,
   getInvoiceSubscriptionId,
@@ -261,6 +262,11 @@ const handleCheckoutCompleted = async (
     return;
   }
 
+  if (session.mode === 'payment' && session.metadata?.type === 'live_course') {
+    await handleLiveCourseCheckoutCompleted(session);
+    return;
+  }
+
   if (session.mode !== 'subscription' || !session.subscription) return;
 
   const stripeSub = await stripe.subscriptions.retrieve(session.subscription as string);
@@ -284,6 +290,33 @@ const handleBookingCheckoutCompleted = async (session: Stripe.Checkout.Session) 
       status: 'succeeded',
       method: 'stripe',
       itemType: 'booking',
+      stripeCheckoutSessionId: session.id,
+      stripePaymentIntentId:
+        typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
+      paidAt: new Date(),
+    },
+    { upsert: true, new: true },
+  );
+};
+
+// One-time live course purchase — confirm the LiveCourseEnrollment (Drive
+// access + confirmation email, owned by the liveCourses module) then record
+// the Payment (owned here, same as every other item type). Mirrors
+// handleBookingCheckoutCompleted above.
+const handleLiveCourseCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
+  const enrollment = await liveCoursesService.confirmLiveCoursePurchase(session);
+  if (!enrollment) return;
+
+  await Payment.findOneAndUpdate(
+    { stripeCheckoutSessionId: session.id },
+    {
+      userId: enrollment.userId,
+      liveCourseId: enrollment.courseId,
+      amount: session.amount_total ?? 0,
+      currency: session.currency ?? 'gbp',
+      status: 'succeeded',
+      method: 'stripe',
+      itemType: 'live_course',
       stripeCheckoutSessionId: session.id,
       stripePaymentIntentId:
         typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
