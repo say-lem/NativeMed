@@ -12,6 +12,8 @@ import { User } from '../../auth/model/auth.model';
 import {
   sendCaseBankAccessGrantedEmail,
   sendCaseBankAccessEndedEmail,
+  sendCaseBankCaseAddedEmail,
+  sendCaseBankCaseUpdatedEmail,
 } from '../email/subscriptions.email.service';
 import { ALL_PLANS, PlanDefinition } from '../constants/plans';
 import {
@@ -76,6 +78,68 @@ export const notifyCaseBankEnded = async (userId: Types.ObjectId | string): Prom
     await sendCaseBankAccessEndedEmail(user.email, user.fullName);
   } catch (err) {
     console.error('❌  Case Bank ended email failed:', err);
+  }
+};
+
+interface CaseBankSubscriberContact {
+  email: string;
+  fullName: string;
+}
+
+const getActiveCaseBankSubscribers = async (): Promise<CaseBankSubscriberContact[]> => {
+  const subscriptions = await Subscription.find({
+    type: 'case_bank',
+    status: { $in: ACTIVE_STATUSES },
+    currentPeriodEnd: { $gt: new Date() },
+  })
+    .populate('userId', 'fullName email')
+    .lean();
+
+  return subscriptions
+    .map((sub) => sub.userId as unknown as { fullName?: string; email?: string } | null)
+    .filter((user): user is { fullName?: string; email: string } => !!user?.email)
+    .map((user) => ({ email: user.email, fullName: user.fullName ?? 'there' }));
+};
+
+/**
+ * Notify every active Case Bank subscriber that a new case is available.
+ * Fire-and-forget, same tolerance as notifyCaseBankGranted/Ended — one
+ * subscriber's email failing shouldn't block the others or the admin action.
+ */
+export const notifyCaseBankSubscribersCaseAdded = async (
+  stationNumber: number,
+  title: string,
+): Promise<void> => {
+  try {
+    const subscribers = await getActiveCaseBankSubscribers();
+    await Promise.all(
+      subscribers.map((subscriber) =>
+        sendCaseBankCaseAddedEmail(subscriber.email, subscriber.fullName, stationNumber, title).catch(
+          (err) => console.error(`❌  Case Bank "case added" email failed for ${subscriber.email}:`, err),
+        ),
+      ),
+    );
+  } catch (err) {
+    console.error('❌  Case Bank "case added" notification failed:', err);
+  }
+};
+
+/** Notify every active Case Bank subscriber that an existing case was updated. */
+export const notifyCaseBankSubscribersCaseUpdated = async (
+  stationNumber: number,
+  title: string,
+): Promise<void> => {
+  try {
+    const subscribers = await getActiveCaseBankSubscribers();
+    await Promise.all(
+      subscribers.map((subscriber) =>
+        sendCaseBankCaseUpdatedEmail(subscriber.email, subscriber.fullName, stationNumber, title).catch(
+          (err) => console.error(`❌  Case Bank "case updated" email failed for ${subscriber.email}:`, err),
+        ),
+      ),
+    );
+  } catch (err) {
+    console.error('❌  Case Bank "case updated" notification failed:', err);
   }
 };
 
