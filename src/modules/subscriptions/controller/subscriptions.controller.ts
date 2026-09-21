@@ -33,7 +33,7 @@ export const getCourseSubscriptionStatus = asyncHandler(async (req: AuthRequest,
 });
 
 export const getPlans = asyncHandler(async (_req, res: Response) => {
-  const plans = subscriptionsService.getAvailablePlans();
+  const plans = await subscriptionsService.getAvailablePlans();
   return ApiResponse.success(res, 'Plans fetched', plans);
 });
 

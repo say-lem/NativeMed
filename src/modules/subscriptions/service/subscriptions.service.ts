@@ -13,7 +13,7 @@ import {
   sendCaseBankAccessGrantedEmail,
   sendCaseBankAccessEndedEmail,
 } from '../email/subscriptions.email.service';
-import { ALL_PLANS } from '../constants/plans';
+import { ALL_PLANS, PlanDefinition } from '../constants/plans';
 import {
   getSubscriptionPeriod,
   mapStripeSubscriptionStatus,
@@ -42,6 +42,7 @@ export const isCaseBankPaymentsPaused = async (): Promise<boolean> => {
   const settings = await getOrCreateCaseBankSettings();
   return settings.paymentsPaused;
 };
+
 
 export const setCaseBankPaymentsPaused = async (paymentsPaused: boolean) => {
   const settings = await CaseBankSettings.findOneAndUpdate(
@@ -124,7 +125,12 @@ export const hasCourseAccess = async (
 // Reads
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const getAvailablePlans = () => ALL_PLANS;
+export const getAvailablePlans = async (): Promise<PlanDefinition[]> => {
+  const paymentsPaused = await isCaseBankPaymentsPaused();
+  return ALL_PLANS.map((plan) =>
+    plan.type === 'case_bank' ? { ...plan, paymentsPaused } : plan,
+  );
+};
 
 export const getMySubscriptions = async (userId: Types.ObjectId) => {
   return Subscription.find({ userId })

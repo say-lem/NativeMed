@@ -20,9 +20,9 @@ export const sendCaseBankAccessGrantedEmail = async (
   const body = `
     <p>Hi ${fullName},</p>
     <p>You now have access to <strong>Case Bank</strong> on Native Med.</p>
-    <p>Log in to start practicing mock cases and the question bank.</p>
+    <p>Log in to start practising cases.</p>
     <hr class="divider" />
-    <p class="note">If you have any questions, reach out to our support team.</p>
+    <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk.</p>
   `;
 
   await sendMail({
