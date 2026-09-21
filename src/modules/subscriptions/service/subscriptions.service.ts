@@ -109,13 +109,20 @@ const getActiveCaseBankSubscribers = async (): Promise<CaseBankSubscriberContact
 export const notifyCaseBankSubscribersCaseAdded = async (
   stationNumber: number,
   title: string,
+  specialty: string,
 ): Promise<void> => {
   try {
     const subscribers = await getActiveCaseBankSubscribers();
     await Promise.all(
       subscribers.map((subscriber) =>
-        sendCaseBankCaseAddedEmail(subscriber.email, subscriber.fullName, stationNumber, title).catch(
-          (err) => console.error(`❌  Case Bank "case added" email failed for ${subscriber.email}:`, err),
+        sendCaseBankCaseAddedEmail(
+          subscriber.email,
+          subscriber.fullName,
+          stationNumber,
+          title,
+          specialty,
+        ).catch((err) =>
+          console.error(`❌  Case Bank "case added" email failed for ${subscriber.email}:`, err),
         ),
       ),
     );
@@ -128,13 +135,20 @@ export const notifyCaseBankSubscribersCaseAdded = async (
 export const notifyCaseBankSubscribersCaseUpdated = async (
   stationNumber: number,
   title: string,
+  specialty: string,
 ): Promise<void> => {
   try {
     const subscribers = await getActiveCaseBankSubscribers();
     await Promise.all(
       subscribers.map((subscriber) =>
-        sendCaseBankCaseUpdatedEmail(subscriber.email, subscriber.fullName, stationNumber, title).catch(
-          (err) => console.error(`❌  Case Bank "case updated" email failed for ${subscriber.email}:`, err),
+        sendCaseBankCaseUpdatedEmail(
+          subscriber.email,
+          subscriber.fullName,
+          stationNumber,
+          title,
+          specialty,
+        ).catch((err) =>
+          console.error(`❌  Case Bank "case updated" email failed for ${subscriber.email}:`, err),
         ),
       ),
     );

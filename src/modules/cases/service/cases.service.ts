@@ -201,7 +201,7 @@ export const createCase = async (
   const result = imageFile || stationImageFile ? await MockCase.findById(id) : mockCase;
 
   if (result?.isPublished) {
-    void notifyCaseBankSubscribersCaseAdded(result.stationNumber, result.title);
+    void notifyCaseBankSubscribersCaseAdded(result.stationNumber, result.title, result.specialty);
   }
 
   return result;
@@ -366,9 +366,9 @@ export const updateCase = async (caseId: string, input: UpdateCaseInput) => {
 
   if (updated.isPublished) {
     if (previous.isPublished) {
-      void notifyCaseBankSubscribersCaseUpdated(updated.stationNumber, updated.title);
+      void notifyCaseBankSubscribersCaseUpdated(updated.stationNumber, updated.title, updated.specialty);
     } else {
-      void notifyCaseBankSubscribersCaseAdded(updated.stationNumber, updated.title);
+      void notifyCaseBankSubscribersCaseAdded(updated.stationNumber, updated.title, updated.specialty);
     }
   }
 
@@ -416,7 +416,7 @@ export const togglePublish = async (caseId: string) => {
   await mockCase.save();
 
   if (mockCase.isPublished) {
-    void notifyCaseBankSubscribersCaseAdded(mockCase.stationNumber, mockCase.title);
+    void notifyCaseBankSubscribersCaseAdded(mockCase.stationNumber, mockCase.title, mockCase.specialty);
   }
 
   return {

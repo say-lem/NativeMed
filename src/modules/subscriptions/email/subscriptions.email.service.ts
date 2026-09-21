@@ -1,5 +1,8 @@
+import { env } from '../../../config/env';
 import { sendMail } from '../../../shared/services/email.service';
 import { renderEmailLayout } from '../../../shared/services/emailLayout.service';
+
+const loginUrl = `${env.CLIENT_URL}/login`;
 
 const layout = (title: string, body: string): string =>
   renderEmailLayout({
@@ -21,6 +24,7 @@ export const sendCaseBankAccessGrantedEmail = async (
     <p>Hi ${fullName},</p>
     <p>You now have access to <strong>Case Bank</strong> on Native Med.</p>
     <p>Log in to start practising cases.</p>
+    <a href="${loginUrl}" class="btn block">Log in</a>
     <hr class="divider" />
     <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk .</p>
   `;
@@ -29,7 +33,7 @@ export const sendCaseBankAccessGrantedEmail = async (
     to,
     subject: 'Your Case Bank access is active',
     html: layout('Case Bank Access', body),
-    text: `Hi ${fullName}, you now have access to Case Bank on Native Med.`,
+    text: `Hi ${fullName}, you now have access to Case Bank on Native Med. Log in here: ${loginUrl}`,
   });
 };
 
@@ -61,12 +65,14 @@ export const sendCaseBankCaseAddedEmail = async (
   fullName: string,
   stationNumber: number,
   title: string,
+  specialty: string,
 ): Promise<void> => {
   const body = `
     <p>Hi ${fullName},</p>
     <p>A new case has been added to <strong>Case Bank</strong>:</p>
-    <p><strong>Station ${stationNumber}: ${title}</strong></p>
+    <p><strong>Station ${stationNumber}: ${title}</strong> (${specialty})</p>
     <p>Log in to start practising it.</p>
+    <a href="${loginUrl}" class="btn block">Log in</a>
     <hr class="divider" />
     <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk .</p>
   `;
@@ -75,7 +81,7 @@ export const sendCaseBankCaseAddedEmail = async (
     to,
     subject: `New Case Bank case: Station ${stationNumber} – ${title}`,
     html: layout('New Case Bank Case', body),
-    text: `Hi ${fullName}, a new case has been added to Case Bank: Station ${stationNumber} - ${title}.`,
+    text: `Hi ${fullName}, a new case has been added to Case Bank: Station ${stationNumber} - ${title} (${specialty}). Log in here: ${loginUrl}`,
   });
 };
 
@@ -85,12 +91,14 @@ export const sendCaseBankCaseUpdatedEmail = async (
   fullName: string,
   stationNumber: number,
   title: string,
+  specialty: string,
 ): Promise<void> => {
   const body = `
     <p>Hi ${fullName},</p>
     <p>A case in <strong>Case Bank</strong> has been updated:</p>
-    <p><strong>Station ${stationNumber}: ${title}</strong></p>
+    <p><strong>Station ${stationNumber}: ${title}</strong> (${specialty})</p>
     <p>Log in to see what's changed.</p>
+    <a href="${loginUrl}" class="btn block">Log in</a>
     <hr class="divider" />
     <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk .</p>
   `;
@@ -99,6 +107,6 @@ export const sendCaseBankCaseUpdatedEmail = async (
     to,
     subject: `Case Bank case updated: Station ${stationNumber} – ${title}`,
     html: layout('Case Bank Case Updated', body),
-    text: `Hi ${fullName}, a case in Case Bank has been updated: Station ${stationNumber} - ${title}.`,
+    text: `Hi ${fullName}, a case in Case Bank has been updated: Station ${stationNumber} - ${title} (${specialty}). Log in here: ${loginUrl}`,
   });
 };
