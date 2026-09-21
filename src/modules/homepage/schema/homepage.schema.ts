@@ -6,12 +6,19 @@ const youtubeUrlField = z
   .url('Must be a valid URL')
   .regex(/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//, 'Must be a YouTube link');
 
+const socialUrlField = z.string().trim().url('Must be a valid URL');
+
 export const updateHomepageStatsSchema = z
   .object({
     testimonialsCount: z.number().int().min(0, 'testimonialsCount cannot be negative').optional(),
     registrarsCount: z.number().int().min(0, 'registrarsCount cannot be negative').optional(),
     contactEmail: z.string().trim().email('Must be a valid email').optional(),
     contactPhone: z.string().trim().min(7, 'Invalid phone number').max(20).optional(),
+    facebookUrl: socialUrlField.optional(),
+    whatsappUrl: socialUrlField.optional(),
+    twitterUrl: socialUrlField.optional(),
+    instagramUrl: socialUrlField.optional(),
+    youtubeUrl: socialUrlField.optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
 

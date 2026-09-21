@@ -78,6 +78,17 @@ export const uploadThumbnail = asyncHandler(async (req: Request, res: Response) 
   return ApiResponse.success(res, 'Thumbnail updated', { thumbnailUrl: course.thumbnailUrl });
 });
 
+export const uploadTocPdf = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) {
+    return ApiResponse.error(res, 'No PDF file uploaded', 400);
+  }
+  const course = await liveCoursesService.updateLiveCourseTocPdf(
+    getSingleParam(req.params.id),
+    req.file,
+  );
+  return ApiResponse.success(res, 'Table of contents PDF updated', { tocPdfUrl: course.tocPdfUrl });
+});
+
 export const endLiveCourse = asyncHandler(async (req: Request, res: Response) => {
   await liveCoursesService.endLiveCourse(getSingleParam(req.params.id));
   return ApiResponse.success(res, 'Live course ended — all enrollments revoked.');

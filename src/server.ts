@@ -1,6 +1,12 @@
+import dns from 'dns';
 import { env } from './config/env';
 import { connectDB } from './config/db';
 import app from './app';
+
+// Render (and several other hosts) resolve outbound IPv6 addresses for hosts
+// like smtp.gmail.com but don't actually route IPv6 traffic, causing
+// ENETUNREACH on the first connection attempt. Preferring IPv4 avoids it.
+dns.setDefaultResultOrder('ipv4first');
 
 const start = async () => {
   await connectDB();

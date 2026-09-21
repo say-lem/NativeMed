@@ -44,6 +44,11 @@ export const getHomepageData = async () => {
     registrarsCount: settings.registrarsCount,
     contactEmail: settings.contactEmail ?? null,
     contactPhone: settings.contactPhone ?? null,
+    facebookUrl: settings.facebookUrl ?? null,
+    whatsappUrl: settings.whatsappUrl ?? null,
+    twitterUrl: settings.twitterUrl ?? null,
+    instagramUrl: settings.instagramUrl ?? null,
+    youtubeUrl: settings.youtubeUrl ?? null,
     youtubeLinks: [...settings.youtubeLinks].sort((a, b) => a.order - b.order),
   };
 };

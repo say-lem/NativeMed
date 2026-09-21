@@ -12,6 +12,11 @@ import {
   revokeLiveCourseEnrollmentSchema,
 } from '../schema/liveCourses.schema';
 import { uploadCourseThumbnail } from '../../courses/upload/courses.upload';
+import {
+  uploadTocPdf,
+  uploadRateLimiter as tocPdfUploadRateLimiter,
+  concurrencyGuard as tocPdfConcurrencyGuard,
+} from '../upload/liveCourses.upload';
 import * as liveCoursesController from '../controller/liveCourses.controller';
 
 const router = Router();
@@ -73,6 +78,18 @@ router.patch(
   authorize('admin'),
   uploadCourseThumbnail.single('thumbnail'),
   liveCoursesController.uploadThumbnail,
+);
+
+// Table of contents PDF — separate endpoint from the main PATCH so it can use
+// multer middleware without interfering with the JSON body parser used above.
+router.patch(
+  '/:id/toc-pdf',
+  authenticate,
+  authorize('admin'),
+  tocPdfUploadRateLimiter,
+  tocPdfConcurrencyGuard,
+  uploadTocPdf.single('tocPdf'),
+  liveCoursesController.uploadTocPdf,
 );
 
 router.patch('/:id/publish', authenticate, authorize('admin'), liveCoursesController.togglePublish);

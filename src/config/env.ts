@@ -20,13 +20,15 @@ const envSchema = z.object({
 
   CLIENT_URL: z.string().url().default('http://localhost:3000'),
 
-  // ── Email (nodemailer) ───────────────────────────────────────────────────────
-  // In development, if SMTP_HOST is not set the mailer falls back to console logging.
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().default(587),
-  SMTP_SECURE: z.string().transform((v) => v === 'true').default(false),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
+  // ── Email (Gmail API) ─────────────────────────────────────────────────────────
+  // Sent over HTTPS via the Gmail API, not SMTP — Render (and several other
+  // hosts) block outbound SMTP ports (25/465/587) on free tiers. OAuth2 client
+  // credentials + a refresh token for the Gmail account in EMAIL_FROM_ADDRESS,
+  // authorized with the gmail.send scope. If unset, the mailer falls back to
+  // console logging (useful for local dev).
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REFRESH_TOKEN: z.string().optional(),
   EMAIL_FROM_NAME: z.string().default('Native Med'),
   EMAIL_FROM_ADDRESS: z.string().email().default('noreply@nativemed.com'),
 

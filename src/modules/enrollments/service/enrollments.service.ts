@@ -275,6 +275,7 @@ export const restoreEnrollment = async (enrollmentId: string) => {
     enrollment.courseId.toString(),
     DRIVE_RESTORE_MESSAGE,
   );
+  void sendEnrollmentConfirmation(enrollment.userId as Types.ObjectId, enrollment.courseId.toString());
 
   return enrollment;
 };

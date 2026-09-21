@@ -22,6 +22,11 @@ export interface IHomepageSettings extends Document {
   registrarsCount: number;
   contactEmail?: string;
   contactPhone?: string;
+  facebookUrl?: string;
+  whatsappUrl?: string;
+  twitterUrl?: string;
+  instagramUrl?: string;
+  youtubeUrl?: string; // channel/profile link — distinct from youtubeLinks (embedded videos) below
   youtubeLinks: Types.DocumentArray<IYoutubeLink>;
   faqs: Types.DocumentArray<IFaq>;
   termsAndConditions: string;
@@ -63,6 +68,11 @@ const homepageSettingsSchema = new Schema<IHomepageSettings>(
     registrarsCount:   { type: Number, required: true, default: 0, min: 0 },
     contactEmail:      { type: String, trim: true, lowercase: true },
     contactPhone:      { type: String, trim: true },
+    facebookUrl:       { type: String, trim: true },
+    whatsappUrl:       { type: String, trim: true },
+    twitterUrl:        { type: String, trim: true },
+    instagramUrl:      { type: String, trim: true },
+    youtubeUrl:        { type: String, trim: true },
     youtubeLinks:      { type: [youtubeLinkSchema], default: [] },
     faqs:              { type: [faqSchema], default: [] },
     // Tracked with its own timestamp — the document's own updatedAt also
