@@ -65,8 +65,15 @@ const API = '/api/v1';
 // ── Stripe webhook (must use raw body, before JSON parser) ───────────────────
 app.use(`${API}/payments/webhook`, paymentsLimiter, express.raw({ type: 'application/json' }), paymentsWebhookRoutes);
 
-// ── Body parsing 
-app.use(express.json({ limit: '10kb' }));
+// ── Body parsing
+// 10kb was too tight for legitimate JSON payloads — case creation (patientStory,
+// markingScheme, etc.) and legal-page content (terms/privacy/disclaimer, up to
+// 40000 chars) can both exceed it. A body over the limit throws a body-parser
+// PayloadTooLargeError that errorHandler has no special case for, so it silently
+// surfaces as a generic 500 "Something went wrong" — this is what was truncating
+// privacy policy saves. Raised to comfortably cover both (still far below the
+// multipart upload endpoints, which have their own separate multer limits).
+app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
