@@ -10,7 +10,7 @@ import { createLeakyBucketLimiter } from '../../../shared/middleware/leakyBucket
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PDF_MIME = new Set(['application/pdf']);
-const MAX_PDF_MB = 50;
+const MAX_PDF_MB = 300;
 
 const pdfFileFilter = (
   _req: Request,

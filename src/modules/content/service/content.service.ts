@@ -1,5 +1,5 @@
 import { Types } from 'mongoose';
-import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
+import cloudinary, { CloudinaryFolders, uploadBufferLarge } from '../../../config/cloudinary';
 import { AppError } from '../../../shared/utils/appError';
 import { UserRole } from '../../../shared/types';
 import { Course } from '../../courses/model/courses.model';
@@ -72,7 +72,7 @@ export const uploadPdf = async (
   const course = await courseExists(courseId, courseType);
   if (!course) throw new AppError(NOT_FOUND_MESSAGE[courseType], 404);
 
-  const result = await uploadBuffer(file.buffer, {
+  const result = await uploadBufferLarge(file.buffer, {
     folder:          CloudinaryFolders.COURSE_PDFS,
     resource_type:   'raw',
     // Cloudinary blocks unsigned delivery of PDF/ZIP by default — uploading as
