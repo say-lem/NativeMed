@@ -1,7 +1,11 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../../shared/utils/appError';
 import { UserRole } from '../../../shared/types';
-import { hasCaseBankAccess } from '../../subscriptions/service/subscriptions.service';
+import {
+  hasCaseBankAccess,
+  notifyCaseBankSubscribersCaseAdded,
+  notifyCaseBankSubscribersCaseUpdated,
+} from '../../subscriptions/service/subscriptions.service';
 import { MockCase } from '../model/cases.model';
 import { CreateCaseInput, UpdateCaseInput, CaseFilterInput } from '../schema/cases.schema';
 import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
@@ -194,10 +198,13 @@ export const createCase = async (
   if (imageFile) await updateCaseImage(id, imageFile);
   if (stationImageFile) await updateCaseStationImage(id, stationImageFile);
 
-  if (imageFile || stationImageFile) {
-    return MockCase.findById(id);
+  const result = imageFile || stationImageFile ? await MockCase.findById(id) : mockCase;
+
+  if (result?.isPublished) {
+    void notifyCaseBankSubscribersCaseAdded(result.stationNumber, result.title);
   }
-  return mockCase;
+
+  return result;
 };
 
 /**
@@ -329,6 +336,9 @@ export const getCaseByIdAdmin = async (caseId: string) => {
  * a patch of { patientData: { age: 41 } } doesn't wipe the entire sub-document.
  */
 export const updateCase = async (caseId: string, input: UpdateCaseInput) => {
+  const previous = await MockCase.findById(caseId).select('isPublished');
+  if (!previous) throw new AppError('Case not found', 404);
+
   // Flatten patientData into dot-notation keys so Mongoose $set merges correctly
   const updatePayload: Record<string, unknown> = {};
 
@@ -353,6 +363,15 @@ export const updateCase = async (caseId: string, input: UpdateCaseInput) => {
   );
 
   if (!updated) throw new AppError('Case not found', 404);
+
+  if (updated.isPublished) {
+    if (previous.isPublished) {
+      void notifyCaseBankSubscribersCaseUpdated(updated.stationNumber, updated.title);
+    } else {
+      void notifyCaseBankSubscribersCaseAdded(updated.stationNumber, updated.title);
+    }
+  }
+
   return updated;
 };
 
@@ -395,6 +414,10 @@ export const togglePublish = async (caseId: string) => {
 
   mockCase.isPublished = !mockCase.isPublished;
   await mockCase.save();
+
+  if (mockCase.isPublished) {
+    void notifyCaseBankSubscribersCaseAdded(mockCase.stationNumber, mockCase.title);
+  }
 
   return {
     _id: mockCase._id,

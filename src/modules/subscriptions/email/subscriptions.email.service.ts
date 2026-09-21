@@ -54,3 +54,51 @@ export const sendCaseBankAccessEndedEmail = async (
     text: `Hi ${fullName}, your Case Bank access on Native Med has ended.`,
   });
 };
+
+// Sent to every active Case Bank subscriber when a new case is published.
+export const sendCaseBankCaseAddedEmail = async (
+  to: string,
+  fullName: string,
+  stationNumber: number,
+  title: string,
+): Promise<void> => {
+  const body = `
+    <p>Hi ${fullName},</p>
+    <p>A new case has been added to <strong>Case Bank</strong>:</p>
+    <p><strong>Station ${stationNumber}: ${title}</strong></p>
+    <p>Log in to start practising it.</p>
+    <hr class="divider" />
+    <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk .</p>
+  `;
+
+  await sendMail({
+    to,
+    subject: `New Case Bank case: Station ${stationNumber} – ${title}`,
+    html: layout('New Case Bank Case', body),
+    text: `Hi ${fullName}, a new case has been added to Case Bank: Station ${stationNumber} - ${title}.`,
+  });
+};
+
+// Sent to every active Case Bank subscriber when a published case is updated.
+export const sendCaseBankCaseUpdatedEmail = async (
+  to: string,
+  fullName: string,
+  stationNumber: number,
+  title: string,
+): Promise<void> => {
+  const body = `
+    <p>Hi ${fullName},</p>
+    <p>A case in <strong>Case Bank</strong> has been updated:</p>
+    <p><strong>Station ${stationNumber}: ${title}</strong></p>
+    <p>Log in to see what's changed.</p>
+    <hr class="divider" />
+    <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk .</p>
+  `;
+
+  await sendMail({
+    to,
+    subject: `Case Bank case updated: Station ${stationNumber} – ${title}`,
+    html: layout('Case Bank Case Updated', body),
+    text: `Hi ${fullName}, a case in Case Bank has been updated: Station ${stationNumber} - ${title}.`,
+  });
+};
