@@ -41,9 +41,16 @@ export const errorHandler = (
     return;
   }
 
-  // ── JWT errors 
+  // ── JWT errors
   if (err instanceof JsonWebTokenError) {
     ApiResponse.error(res, 'Invalid token', 401);
+    return;
+  }
+
+  // ── Body too large (express.json's `limit` option) — otherwise falls
+  // through to the generic 500 below with no indication of what went wrong.
+  if ((err as { type?: string }).type === 'entity.too.large') {
+    ApiResponse.error(res, 'Request body is too large', 413);
     return;
   }
 
