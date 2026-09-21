@@ -60,20 +60,24 @@ export const updateFaqSchema = z
 
 export type UpdateFaqInput = z.infer<typeof updateFaqSchema>;
 
+// 40000 (not 20000) — legal documents like the privacy policy routinely run
+// 15-20k characters as markdown, and pasting from Word/Docs can inflate that
+// further once the admin's rich-text editor re-serializes it; 20000 was
+// silently rejecting real saves that then left the public page mid-document.
 export const updateTermsAndConditionsSchema = z.object({
-  content: z.string().trim().min(1, 'Content is required').max(20000),
+  content: z.string().trim().min(1, 'Content is required').max(40000),
 });
 
 export type UpdateTermsAndConditionsInput = z.infer<typeof updateTermsAndConditionsSchema>;
 
 export const updateLegalDisclaimerSchema = z.object({
-  content: z.string().trim().min(1, 'Content is required').max(20000),
+  content: z.string().trim().min(1, 'Content is required').max(40000),
 });
 
 export type UpdateLegalDisclaimerInput = z.infer<typeof updateLegalDisclaimerSchema>;
 
 export const updatePrivacyPolicySchema = z.object({
-  content: z.string().trim().min(1, 'Content is required').max(20000),
+  content: z.string().trim().min(1, 'Content is required').max(40000),
 });
 
 export type UpdatePrivacyPolicyInput = z.infer<typeof updatePrivacyPolicySchema>;
