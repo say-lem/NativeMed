@@ -22,7 +22,7 @@ export const sendWelcomeEmail = async (
     <p>You can now log in and explore available courses, mock cases and the question bank.</p>
     <a href="${env.CLIENT_URL}/login" class="btn block">Go to your dashboard</a>
     <hr class="divider" />
-    <p class="note">If you have any questions, reach out to our support team.</p>
+    <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk.</p>
   `;
 
   await sendMail({

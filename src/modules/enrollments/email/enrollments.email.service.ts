@@ -42,7 +42,7 @@ export const sendEnrollmentEmail = async (
     <p>You have successfully enrolled in <strong>${courseTitle}</strong>.</p>
     ${communitySection}
     <hr class="divider" />
-    <p class="note">If you have any questions, reach out to our support team.</p>
+    <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk.</p>
   `;
 
   const textLines = [

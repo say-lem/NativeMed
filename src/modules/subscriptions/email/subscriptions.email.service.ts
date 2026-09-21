@@ -22,7 +22,7 @@ export const sendCaseBankAccessGrantedEmail = async (
     <p>You now have access to <strong>Case Bank</strong> on Native Med.</p>
     <p>Log in to start practising cases.</p>
     <hr class="divider" />
-    <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk.</p>
+    <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk .</p>
   `;
 
   await sendMail({
@@ -44,7 +44,7 @@ export const sendCaseBankAccessEndedEmail = async (
     <p>Your access to <strong>Case Bank</strong> on Native Med has ended.</p>
     <p>You can resubscribe at any time to regain access.</p>
     <hr class="divider" />
-    <p class="note">If you have any questions, reach out to our support team.</p>
+    <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk .</p>
   `;
 
   await sendMail({
