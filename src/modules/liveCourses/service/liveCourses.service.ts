@@ -11,9 +11,9 @@ import { LiveCourse, ILiveCourse } from '../model/liveCourses.model';
 import { LiveCourseEnrollment, ILiveCourseEnrollment } from '../model/liveCourseEnrollments.model';
 import { CreateLiveCourseInput, UpdateLiveCourseInput, LiveCourseFilterInput, PurchaseLiveCourseInput } from '../schema/liveCourses.schema';
 
-// driveFolderId/thumbnailPublicId are select:false by default (never sent to
-// public clients) — admin queries opt back in with this.
-const adminDriveFields = '+driveFolderId +thumbnailPublicId';
+// driveFolderId/thumbnailPublicId/tocPdfPublicId are select:false by default
+// (never sent to public clients) — admin queries opt back in with this.
+const adminDriveFields = '+driveFolderId +thumbnailPublicId +tocPdfPublicId';
 const DRIVE_FOLDER_SELECT = '+driveFolderId';
 
 const MANUAL_PAYMENT_ID = new Types.ObjectId('000000000000000000000000');
@@ -102,13 +102,82 @@ export const updateLiveCourseThumbnail = async (courseId: string, file: Express.
 };
 
 /**
+ * Upload/replace the table-of-contents PDF for a live course. Same
+ * destroy-then-upload ordering as updateLiveCourseThumbnail.
+ *
+ * Cloudinary blocks unsigned CDN delivery of PDF/ZIP assets by URL extension
+ * regardless of delivery type (same reasoning as freeProducts' PDF handling),
+ * so the file is stored as `resource_type: 'raw', type: 'authenticated'` and
+ * a fresh signed URL is generated on every read — see getTocPdfDeliveryUrl.
+ */
+export const updateLiveCourseTocPdf = async (courseId: string, file: Express.Multer.File) => {
+  const course = await LiveCourse.findById(courseId).select('+tocPdfPublicId');
+  if (!course) throw new AppError('Live course not found', 404);
+
+  if (course.tocPdfPublicId) {
+    try {
+      await cloudinary.uploader.destroy(course.tocPdfPublicId, {
+        resource_type: 'raw',
+        type: 'authenticated',
+      });
+    } catch (err) {
+      console.error(`⚠️  Could not delete old TOC PDF (${course.tocPdfPublicId}):`, err);
+    }
+  }
+
+  const result = await uploadBuffer(file.buffer, {
+    folder: CloudinaryFolders.LIVE_COURSE_TOC_PDFS,
+    resource_type: 'raw',
+    type: 'authenticated',
+    use_filename: false,
+    unique_filename: true,
+    overwrite: false,
+  });
+
+  const updated = await LiveCourse.findByIdAndUpdate(
+    courseId,
+    { tocPdfUrl: result.secure_url, tocPdfPublicId: result.public_id },
+    { new: true },
+  );
+
+  if (!updated) throw new AppError('Live course not found', 404);
+  return updated;
+};
+
+const getTocPdfDeliveryUrl = (publicId: string): string =>
+  cloudinary.utils.private_download_url(publicId, '', {
+    resource_type: 'raw',
+    type: 'authenticated',
+  });
+
+const withTocPdfDeliveryUrl = <T extends { tocPdfPublicId?: string; tocPdfUrl?: string }>(
+  course: T,
+): T => {
+  if (course.tocPdfPublicId) {
+    course.tocPdfUrl = getTocPdfDeliveryUrl(course.tocPdfPublicId);
+  }
+  return course;
+};
+
+/**
  * Deleting a live course cascades: every enrollment record for it is deleted
  * (Drive access pulled first). There's no subscription to cancel — live
  * courses are a one-time payment, not a recurring billing relationship.
  */
 export const deleteLiveCourse = async (courseId: string): Promise<void> => {
-  const course = await LiveCourse.findById(courseId);
+  const course = await LiveCourse.findById(courseId).select('+tocPdfPublicId');
   if (!course) throw new AppError('Live course not found', 404);
+
+  if (course.tocPdfPublicId) {
+    try {
+      await cloudinary.uploader.destroy(course.tocPdfPublicId, {
+        resource_type: 'raw',
+        type: 'authenticated',
+      });
+    } catch (err) {
+      console.error(`⚠️  Could not delete TOC PDF (${course.tocPdfPublicId}):`, err);
+    }
+  }
 
   await deleteAllEnrollmentsForCourse(courseId);
 
@@ -172,7 +241,7 @@ export const getAllLiveCoursesAdmin = async (params: LiveCourseFilterInput) => {
   ]);
 
   return {
-    items: items.map(toAdminLiveCourseJSON),
+    items: items.map((course) => toAdminLiveCourseJSON(withTocPdfDeliveryUrl(course))),
     total,
     page,
     limit,
@@ -185,7 +254,7 @@ export const getLiveCourseByIdAdmin = async (courseId: string) => {
     .select(adminDriveFields)
     .populate('createdBy', 'fullName email');
   if (!course) throw new AppError('Live course not found', 404);
-  return toAdminLiveCourseJSON(course);
+  return toAdminLiveCourseJSON(withTocPdfDeliveryUrl(course));
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,20 +262,21 @@ export const getLiveCourseByIdAdmin = async (courseId: string) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const publicLiveCourseFields =
-  'title description detailedDescription price startDate endDate thumbnailUrl telegramChannel whatsappChannel isPublished paymentsPaused createdAt updatedAt';
+  'title description detailedDescription price startDate endDate thumbnailUrl tocPdfUrl telegramChannel whatsappChannel isPublished paymentsPaused createdAt updatedAt';
 
 export const getAllPublishedLiveCourses = async () => {
-  return LiveCourse.find({ isPublished: true })
-    .select(publicLiveCourseFields)
+  const courses = await LiveCourse.find({ isPublished: true })
+    .select(`${publicLiveCourseFields} +tocPdfPublicId`)
     .sort({ startDate: 1 });
+  return courses.map(withTocPdfDeliveryUrl);
 };
 
 export const getLiveCourseById = async (courseId: string) => {
   const course = await LiveCourse.findOne({ _id: courseId, isPublished: true }).select(
-    publicLiveCourseFields,
+    `${publicLiveCourseFields} +tocPdfPublicId`,
   );
   if (!course) throw new AppError('Live course not found', 404);
-  return course;
+  return withTocPdfDeliveryUrl(course);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -486,6 +556,7 @@ export const restoreEnrollment = async (enrollmentId: string) => {
     enrollment.courseId.toString(),
     RESTORE_MESSAGE,
   );
+  void sendPurchaseConfirmation(enrollment.userId as Types.ObjectId, enrollment.courseId.toString());
 
   return enrollment;
 };

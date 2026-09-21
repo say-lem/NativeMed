@@ -87,6 +87,10 @@ export const createCheckoutSession = async (input: CreateCheckoutInput) => {
       },
     ];
   } else {
+    if (await subscriptionsService.isCaseBankPaymentsPaused()) {
+      throw new AppError('Payments are currently paused for Case Bank', 400);
+    }
+
     const planPrice = resolveCaseBankPlanPrice(interval);
     lineItems = [{ price: planPrice.stripePriceId, quantity: 1 }];
   }
@@ -270,7 +274,20 @@ const handleCheckoutCompleted = async (
   if (session.mode !== 'subscription' || !session.subscription) return;
 
   const stripeSub = await stripe.subscriptions.retrieve(session.subscription as string);
-  await syncSubscriptionFromStripe(stripeSub, session.metadata ?? undefined, eventCreated);
+  const subscription = await syncSubscriptionFromStripe(
+    stripeSub,
+    session.metadata ?? undefined,
+    eventCreated,
+  );
+
+  // Checkout completion fires exactly once per new subscription (renewals go
+  // through invoice.payment_succeeded instead, which also calls
+  // syncSubscriptionFromStripe) — the right place for a one-time "you've
+  // subscribed" email. Course-type already emails via
+  // createEnrollmentFromSubscription's wasActive gate in grantAccessForSubscription.
+  if (subscription?.type === 'case_bank') {
+    void subscriptionsService.notifyCaseBankGranted(subscription.userId as Types.ObjectId);
+  }
 };
 
 // One-time booking payment — confirm the SessionBooking (domain state + admin
@@ -491,6 +508,10 @@ const revokeAccessForSubscription = async (subscription: ISubscription | null) =
       subscription.userId.toString(),
       subscription.courseId.toString(),
     );
+  }
+
+  if (subscription.type === 'case_bank') {
+    void subscriptionsService.notifyCaseBankEnded(subscription.userId as Types.ObjectId);
   }
 };
 

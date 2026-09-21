@@ -2,7 +2,13 @@ import { Router } from 'express';
 import { authenticate } from '../../../shared/middleware/authenticate';
 import { authorize } from '../../../shared/middleware/authorize';
 import { validate } from '../../../shared/middleware/validate';
-import { courseIdParamsSchema, changePlanSchema } from '../schema/subscriptions.schema';
+import {
+  courseIdParamsSchema,
+  changePlanSchema,
+  manualGrantCaseBankSchema,
+  revokeCaseBankSchema,
+  restoreCaseBankSchema,
+} from '../schema/subscriptions.schema';
 import * as subscriptionsController from '../controller/subscriptions.controller';
 
 const router = Router();
@@ -16,6 +22,46 @@ router.get(
   authenticate,
   authorize('admin'),
   subscriptionsController.getSubscribers,
+);
+
+// ── Admin — Case Bank management ────────────────────────────────────────────
+
+router.post(
+  '/case-bank/enroll',
+  authenticate,
+  authorize('admin'),
+  validate(manualGrantCaseBankSchema),
+  subscriptionsController.manualGrantCaseBank,
+);
+
+router.post(
+  '/case-bank/revoke',
+  authenticate,
+  authorize('admin'),
+  validate(revokeCaseBankSchema),
+  subscriptionsController.revokeCaseBankAccess,
+);
+
+router.patch(
+  '/case-bank/restore',
+  authenticate,
+  authorize('admin'),
+  validate(restoreCaseBankSchema),
+  subscriptionsController.restoreCaseBankAccess,
+);
+
+router.patch(
+  '/case-bank/pause-payments',
+  authenticate,
+  authorize('admin'),
+  subscriptionsController.pauseCaseBankPayments,
+);
+
+router.patch(
+  '/case-bank/resume-payments',
+  authenticate,
+  authorize('admin'),
+  subscriptionsController.resumeCaseBankPayments,
 );
 
 router.get('/case-bank/status', authenticate, subscriptionsController.getCaseBankStatus);

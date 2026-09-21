@@ -1,7 +1,13 @@
 import { Response } from 'express';
+import { Types } from 'mongoose';
 import { asyncHandler } from '../../../shared/middleware/asyncHandler';
 import { ApiResponse } from '../../../shared/utils/apiResponse';
 import { AuthRequest } from '../../../shared/types';
+import {
+  ManualGrantCaseBankInput,
+  RevokeCaseBankInput,
+  RestoreCaseBankInput,
+} from '../schema/subscriptions.schema';
 import * as subscriptionsService from '../service/subscriptions.service';
 import * as paymentsService from '../../payments/service/payments.service';
 
@@ -34,6 +40,40 @@ export const getPlans = asyncHandler(async (_req, res: Response) => {
 export const getSubscribers = asyncHandler(async (_req, res: Response) => {
   const subscribers = await subscriptionsService.getAllSubscribers();
   return ApiResponse.success(res, 'Subscribers fetched', subscribers);
+});
+
+// ── Admin — Case Bank management ────────────────────────────────────────────
+
+export const manualGrantCaseBank = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { userId, durationDays } = req.body as ManualGrantCaseBankInput;
+  const subscription = await subscriptionsService.manualGrantCaseBank(
+    new Types.ObjectId(userId),
+    req.user!._id,
+    durationDays,
+  );
+  return ApiResponse.created(res, 'Case Bank access granted', subscription);
+});
+
+export const revokeCaseBankAccess = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { userId } = req.body as RevokeCaseBankInput;
+  await subscriptionsService.revokeCaseBankAccess(userId);
+  return ApiResponse.success(res, 'Case Bank access revoked');
+});
+
+export const restoreCaseBankAccess = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { userId, durationDays } = req.body as RestoreCaseBankInput;
+  const subscription = await subscriptionsService.restoreCaseBankAccess(userId, durationDays);
+  return ApiResponse.success(res, 'Case Bank access restored', subscription);
+});
+
+export const pauseCaseBankPayments = asyncHandler(async (_req, res: Response) => {
+  const settings = await subscriptionsService.setCaseBankPaymentsPaused(true);
+  return ApiResponse.success(res, 'Payments paused for Case Bank', settings);
+});
+
+export const resumeCaseBankPayments = asyncHandler(async (_req, res: Response) => {
+  const settings = await subscriptionsService.setCaseBankPaymentsPaused(false);
+  return ApiResponse.success(res, 'Payments resumed for Case Bank', settings);
 });
 
 // ── Self-service — cancel / resume / change plan ────────────────────────────

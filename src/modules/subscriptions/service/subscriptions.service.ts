@@ -7,6 +7,12 @@ import {
   SubscriptionType,
 } from '../../../shared/types';
 import { Subscription, ISubscription } from '../model/subscriptions.model';
+import { CaseBankSettings } from '../model/caseBankSettings.model';
+import { User } from '../../auth/model/auth.model';
+import {
+  sendCaseBankAccessGrantedEmail,
+  sendCaseBankAccessEndedEmail,
+} from '../email/subscriptions.email.service';
 import { ALL_PLANS } from '../constants/plans';
 import {
   getSubscriptionPeriod,
@@ -18,6 +24,59 @@ const ACTIVE_STATUSES: SubscriptionStatus[] = ['active', 'past_due'];
 // ─────────────────────────────────────────────────────────────────────────────
 // Access checks
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Case Bank settings — singleton, gates new purchases globally
+// ─────────────────────────────────────────────────────────────────────────────
+
+const getOrCreateCaseBankSettings = async () => {
+  const settings = await CaseBankSettings.findOneAndUpdate(
+    {},
+    { $setOnInsert: {} },
+    { returnDocument: 'after', upsert: true },
+  );
+  return settings!;
+};
+
+export const isCaseBankPaymentsPaused = async (): Promise<boolean> => {
+  const settings = await getOrCreateCaseBankSettings();
+  return settings.paymentsPaused;
+};
+
+export const setCaseBankPaymentsPaused = async (paymentsPaused: boolean) => {
+  const settings = await CaseBankSettings.findOneAndUpdate(
+    {},
+    { $set: { paymentsPaused }, $setOnInsert: {} },
+    { returnDocument: 'after', upsert: true },
+  );
+  return settings!;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Case Bank notifications — fire-and-forget, don't let email failure block
+// the subscribe/grant/revoke/restore flow. Called both from admin actions
+// below and from payments.service.ts's Stripe webhook handlers.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const notifyCaseBankGranted = async (userId: Types.ObjectId | string): Promise<void> => {
+  try {
+    const user = await User.findById(userId).select('email fullName').lean();
+    if (!user) return;
+    await sendCaseBankAccessGrantedEmail(user.email, user.fullName);
+  } catch (err) {
+    console.error('❌  Case Bank granted email failed:', err);
+  }
+};
+
+export const notifyCaseBankEnded = async (userId: Types.ObjectId | string): Promise<void> => {
+  try {
+    const user = await User.findById(userId).select('email fullName').lean();
+    if (!user) return;
+    await sendCaseBankAccessEndedEmail(user.email, user.fullName);
+  } catch (err) {
+    console.error('❌  Case Bank ended email failed:', err);
+  }
+};
 
 export const hasCaseBankAccess = async (userId: Types.ObjectId): Promise<boolean> => {
   const sub = await Subscription.findOne({
@@ -483,7 +542,7 @@ export const manualGrantCaseBank = async (
   const currentPeriodEnd = new Date(now);
   currentPeriodEnd.setDate(currentPeriodEnd.getDate() + durationDays);
 
-  return Subscription.create({
+  const subscription = await Subscription.create({
     userId,
     type: 'case_bank',
     billingInterval: 'monthly',
@@ -495,4 +554,70 @@ export const manualGrantCaseBank = async (
     cancelAtPeriodEnd: false,
     grantedBy,
   });
+
+  void notifyCaseBankGranted(userId);
+  return subscription;
+};
+
+/**
+ * Revoke a user's Case Bank access (admin action). Cancels on Stripe first
+ * so billing stops immediately, then marks the local record cancelled
+ * regardless of the Stripe call's outcome — same ordering/tolerance as
+ * cancelAllSubscriptionsForCourse. Manually-granted subscriptions have no
+ * real Stripe object to cancel, so those are skipped straight to the local
+ * update.
+ */
+export const revokeCaseBankAccess = async (userId: string): Promise<void> => {
+  const subscription = await findActiveCaseBankSubscription(new Types.ObjectId(userId));
+  if (!subscription) throw new AppError('No active Case Bank subscription found for this user', 404);
+
+  if (!subscription.stripeSubscriptionId.startsWith('manual_')) {
+    const { stripe } = await import('../../../config/stripe');
+    try {
+      await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
+    } catch (err) {
+      console.error(
+        `❌  Failed to cancel Stripe subscription ${subscription.stripeSubscriptionId}:`,
+        err,
+      );
+    }
+  }
+
+  subscription.status = 'cancelled';
+  subscription.cancelAtPeriodEnd = false;
+  await subscription.save();
+
+  void notifyCaseBankEnded(subscription.userId as Types.ObjectId);
+};
+
+/**
+ * Restore a user's Case Bank access after an admin revoke (admin action).
+ * Stripe has no "uncancel" for a fully deleted subscription — once cancelled
+ * on Stripe's side, the only way back is a new subscription — so this always
+ * grants a fresh local period rather than attempting to resurrect the
+ * original Stripe subscription, same as a manual grant.
+ */
+export const restoreCaseBankAccess = async (
+  userId: string,
+  durationDays: number,
+): Promise<ISubscription> => {
+  const subscription = await Subscription.findOne({ userId, type: 'case_bank' }).sort({
+    createdAt: -1,
+  });
+  if (!subscription) throw new AppError('No Case Bank subscription found for this user', 404);
+  if (ACTIVE_STATUSES.includes(subscription.status) && subscription.currentPeriodEnd > new Date()) {
+    throw new AppError('This user already has active Case Bank access', 400);
+  }
+
+  const currentPeriodEnd = new Date();
+  currentPeriodEnd.setDate(currentPeriodEnd.getDate() + durationDays);
+
+  subscription.status = 'active';
+  subscription.cancelAtPeriodEnd = false;
+  subscription.currentPeriodStart = new Date();
+  subscription.currentPeriodEnd = currentPeriodEnd;
+  await subscription.save();
+
+  void notifyCaseBankGranted(subscription.userId as Types.ObjectId);
+  return subscription;
 };

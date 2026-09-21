@@ -13,6 +13,10 @@ export interface ILiveCourse extends Document {
   endDate: Date;
   thumbnailUrl?: string;
   thumbnailPublicId?: string; // select:false — Cloudinary ref, used only for thumbnail deletion
+  // Table of contents PDF — a static, admin-uploaded preview shown to
+  // unauthenticated users on the public course page, before they enroll.
+  tocPdfUrl?: string;
+  tocPdfPublicId?: string; // select:false — Cloudinary ref, used for delivery + deletion
   // Google Drive folder ID — share it with the service account (Content Manager/Manager
   // role on a Shared Drive). Enrolled users are granted Viewer access to this folder.
   driveFolderId?: string;             // select:false
@@ -37,6 +41,8 @@ const liveCourseSchema = new Schema<ILiveCourse>(
     endDate: { type: Date, required: true },
     thumbnailUrl: { type: String },
     thumbnailPublicId: { type: String, select: false }, // internal Cloudinary ref — never sent to clients
+    tocPdfUrl: { type: String },
+    tocPdfPublicId: { type: String, select: false }, // internal Cloudinary ref — never sent to clients
     driveFolderId: { type: String, select: false },
     telegramChannel: { type: String, trim: true, default: null },
     whatsappChannel: { type: String, trim: true, default: null },
@@ -55,6 +61,7 @@ liveCourseSchema.set('toJSON', {
   transform: (_doc, ret) => {
     const safeRet = ret as unknown as Record<string, unknown>;
     delete safeRet.thumbnailPublicId;
+    delete safeRet.tocPdfPublicId;
     delete safeRet.driveFolderId;
     delete safeRet.__v;
     return safeRet;

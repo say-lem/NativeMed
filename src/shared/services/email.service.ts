@@ -1,30 +1,17 @@
-import nodemailer, { Transporter } from 'nodemailer';
+import MailComposer from 'nodemailer/lib/mail-composer';
 import { env } from '../../config/env';
+import { gmail } from '../../config/gmail';
 
 // ── Transport ─────────────────────────────────────────────────────────────────
-// In development without SMTP credentials, nodemailer falls back to a
-// console transport so the app runs without email infrastructure.
+// Sent over HTTPS via the Gmail API (see config/gmail.ts), not SMTP — several
+// hosts (Render's free tier included) block outbound SMTP ports entirely.
+// nodemailer's MailComposer builds the raw RFC 2822 message locally (HTML,
+// text, attachments) without opening any connection — only the final
+// base64url `raw` string is sent, via gmail.users.messages.send.
+// In development without Gmail credentials, falls back to console logging so
+// the app runs without email infrastructure.
 
-let transporter: Transporter;
-
-if (env.NODE_ENV === 'production' || env.SMTP_HOST) {
-  transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_SECURE, // true for 465, false for other ports
-    auth: {
-      user: env.SMTP_USER,
-      pass: env.SMTP_PASS,
-    },
-  });
-} else {
-  // Development console transport — prints email content to stdout
-  transporter = nodemailer.createTransport({
-    jsonTransport: true,
-  });
-}
-
-// ── Send helper 
+// ── Send helper
 
 export interface MailAttachment {
   filename: string;
@@ -57,38 +44,54 @@ const redactSensitiveContent = (text: string): string =>
     .replace(/(password[:\s]+)\S+/gi, '$1[REDACTED]')
     .replace(/(temporary password[:\s]+)\S+/gi, '$1[REDACTED]');
 
+const logDevEmail = (options: MailOptions): void => {
+  console.log('\n📧  ── DEV EMAIL (Gmail API not configured) ─────────');
+  console.log(`  To:      ${options.to}`);
+  console.log(`  Subject: ${options.subject}`);
+
+  if (options.containsSensitiveData) {
+    // Never log reset links, temp passwords, or auth tokens — even in dev.
+    console.log('  Body:    [SUPPRESSED — contains sensitive data]');
+  } else {
+    const stripped = options.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const safe = redactSensitiveContent(stripped);
+    console.log(`  Body:    ${safe.slice(0, 300)}${safe.length > 300 ? '…' : ''}`);
+  }
+
+  console.log('──────────────────────────────────────────────────\n');
+};
+
+// Gmail's API takes the raw RFC 2822 message base64url-encoded (base64 with
+// URL-safe characters and no padding), not plain base64.
+const toBase64Url = (buffer: Buffer): string =>
+  buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
 export const sendMail = async (options: MailOptions): Promise<void> => {
-  const mailOptions = {
-    from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM_ADDRESS}>`,
+  if (!gmail) {
+    logDevEmail(options);
+    return;
+  }
+
+  const composer = new MailComposer({
+    from: `${env.EMAIL_FROM_NAME} <${env.EMAIL_FROM_ADDRESS}>`,
     to: options.to,
-    replyTo: options.replyTo,
     subject: options.subject,
     html: options.html,
     text: options.text,
-    attachments: options.attachments,
-  };
+    replyTo: options.replyTo,
+    attachments: options.attachments?.map((attachment) => ({
+      filename: attachment.filename,
+      content: attachment.content,
+      contentType: attachment.contentType,
+    })),
+  });
 
-  const info = await transporter.sendMail(mailOptions);
+  const message = await composer.compile().build();
 
-  if (env.NODE_ENV !== 'production' && !env.SMTP_HOST) {
-    console.log('\n📧  ── DEV EMAIL ──────────────────────────────────');
-    console.log(`  To:      ${options.to}`);
-    console.log(`  Subject: ${options.subject}`);
+  const res = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw: toBase64Url(message) },
+  });
 
-    if (options.containsSensitiveData) {
-      // Never log reset links, temp passwords, or auth tokens — even in dev.
-      // Check your SMTP inbox or use a local mail catcher (e.g. Mailpit).
-      console.log('  Body:    [SUPPRESSED — contains sensitive data]');
-      console.log('  Tip:     Run Mailpit (https://mailpit.axllent.org) to');
-      console.log('           inspect emails locally without leaking secrets.');
-    } else {
-      const stripped = options.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      const safe = redactSensitiveContent(stripped);
-      console.log(`  Body:    ${safe.slice(0, 300)}${safe.length > 300 ? '…' : ''}`);
-    }
-
-    console.log('──────────────────────────────────────────────────\n');
-  } else {
-    console.log(`✉️   Email sent to ${options.to} — Message ID: ${info.messageId}`);
-  }
+  console.log(`✉️   Email sent to ${options.to} — Message ID: ${res.data.id}`);
 };

@@ -15,6 +15,7 @@
     "reconcile:stripe": "ts-node src/scripts/reconcile-stripe.ts",
     "test:stripe": "ts-node -r dotenv/config src/scripts/test-stripe-connection.ts",
     "test:drive": "ts-node -r dotenv/config src/scripts/test-google-drive-connection.ts",
+    "test:email": "ts-node -r dotenv/config src/scripts/test-email-connection.ts",
     "typecheck": "tsc --noEmit",
     "test": "jest"
   },
@@ -34,7 +35,7 @@
     "mongoose": "^9.3.2",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^10.0.10",
     "stripe": "^22.2.2",
     "zod": "^4.3.6"
   },
@@ -48,7 +49,6 @@
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.1.0",
     "@types/node": "^20.19.39",
-    "@types/nodemailer": "^8.0.0",
     "@types/stripe": "^8.0.416",
     "jest": "^30.5.0",
     "mongodb-memory-server": "^11.2.0",
