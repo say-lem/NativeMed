@@ -6,7 +6,7 @@ import * as paymentsService from '../service/payments.service';
 import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
 
 export const getPlans = asyncHandler(async (_req, res: Response) => {
-  const plans = subscriptionsService.getAvailablePlans();
+  const plans = await subscriptionsService.getAvailablePlans();
   return ApiResponse.success(res, 'Plans fetched', plans);
 });
 

@@ -91,9 +91,19 @@ describe('subscriptions.service', () => {
   });
 
   describe('reads', () => {
-    it('getAvailablePlans includes the case bank plan', () => {
-      const plans = subscriptionsService.getAvailablePlans();
+    it('getAvailablePlans includes the case bank plan', async () => {
+      const plans = await subscriptionsService.getAvailablePlans();
       expect(plans.some((p) => p.type === 'case_bank')).toBe(true);
+    });
+
+    it('getAvailablePlans reflects the live paymentsPaused toggle on the case bank plan', async () => {
+      const before = await subscriptionsService.getAvailablePlans();
+      expect(before.find((p) => p.type === 'case_bank')?.paymentsPaused).toBe(false);
+
+      await subscriptionsService.setCaseBankPaymentsPaused(true);
+
+      const after = await subscriptionsService.getAvailablePlans();
+      expect(after.find((p) => p.type === 'case_bank')?.paymentsPaused).toBe(true);
     });
 
     it('getMySubscriptions returns the user subscriptions', async () => {

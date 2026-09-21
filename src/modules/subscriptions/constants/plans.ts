@@ -14,6 +14,10 @@ export interface PlanDefinition {
   name: string;
   description: string;
   prices: PlanPrice[];
+  // Live toggle, only meaningful (and populated) for the case_bank plan —
+  // see getAvailablePlans() in the service, which merges this in at request
+  // time since it's runtime-mutable admin state, not a static plan detail.
+  paymentsPaused?: boolean;
 }
 
 export const CASE_BANK_PLAN: PlanDefinition = {
