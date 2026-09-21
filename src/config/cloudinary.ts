@@ -57,3 +57,26 @@ export const uploadBuffer = (
     stream.end(buffer);
   });
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// uploadBufferLarge
+// Cloudinary's plain (non-chunked) upload API hard-rejects any file over 100MB,
+// regardless of plan — this uses upload_large_stream instead, which splits the
+// buffer into chunks (default 20MB) client-side before sending. Use this for
+// anything that can exceed 100MB; below that, uploadBuffer is simpler/faster.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const uploadBufferLarge = (
+  buffer: Buffer,
+  options: UploadApiOptions,
+): Promise<UploadApiResponse> => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_large_stream(options, (error, result) => {
+      if (error) return reject(error);
+      if (!result) return reject(new Error('Cloudinary returned an empty response'));
+      resolve(result);
+    });
+
+    stream.end(buffer);
+  });
+};

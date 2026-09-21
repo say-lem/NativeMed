@@ -17,6 +17,11 @@ export const uploadBuffer = jest.fn().mockResolvedValue({
   public_id: 'mock_public_id',
 });
 
+export const uploadBufferLarge = jest.fn().mockResolvedValue({
+  secure_url: 'https://cdn.example.com/mock-upload',
+  public_id: 'mock_public_id',
+});
+
 export const CloudinaryFolders = {
   COURSE_VIDEOS: 'native-med/courses/videos',
   COURSE_AUDIOS: 'native-med/courses/audios',

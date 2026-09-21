@@ -5,7 +5,7 @@ import * as contentService from './content.service';
 import * as enrollmentsService from '../../enrollments/service/enrollments.service';
 import * as liveCoursesService from '../../liveCourses/service/liveCourses.service';
 import { CourseContent } from '../model/content.model';
-import { cloudinaryMock, uploadBuffer } from '../../../../tests/mocks/cloudinary.mock';
+import { cloudinaryMock, uploadBufferLarge } from '../../../../tests/mocks/cloudinary.mock';
 import {
   createTestUser,
   createTestCourse,
@@ -15,7 +15,7 @@ import {
 
 describe('content.service', () => {
   beforeEach(() => {
-    uploadBuffer.mockClear();
+    uploadBufferLarge.mockClear();
     cloudinaryMock.uploader.destroy.mockClear();
     cloudinaryMock.utils.private_download_url.mockClear();
   });
@@ -33,7 +33,7 @@ describe('content.service', () => {
 
       expect(content.type).toBe('pdf');
       expect(content.fileUrl).toBe('https://cdn.example.com/mock-upload');
-      expect(uploadBuffer).toHaveBeenCalledWith(
+      expect(uploadBufferLarge).toHaveBeenCalledWith(
         file.buffer,
         expect.objectContaining({ resource_type: 'raw', type: 'authenticated' }),
       );
@@ -59,7 +59,7 @@ describe('content.service', () => {
       });
 
       expect(content.fileUrl).toBe('https://drive.google.com/file/d/abc123/view');
-      expect(uploadBuffer).not.toHaveBeenCalled();
+      expect(uploadBufferLarge).not.toHaveBeenCalled();
     });
   });
 
