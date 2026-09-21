@@ -170,7 +170,7 @@ export const getAllSubscribers = async (): Promise<SubscriberListItem[]> => {
   return subscriptions.map((subscription) => {
     const user = subscription.userId as unknown as { fullName?: string; email?: string };
     const course = subscription.courseId as unknown as { title?: string };
-    const isActive = subscription.currentPeriodEnd > now;
+    const isActive = subscription.status === 'active' && subscription.currentPeriodEnd > now;
 
     return {
       name: user?.fullName ?? 'Unknown User',
