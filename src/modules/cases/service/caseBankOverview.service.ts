@@ -50,7 +50,8 @@ export const updateCaseBankOverviewImage = async (file: Express.Multer.File) => 
     use_filename: false,
     unique_filename: true,
     overwrite: false,
-    transformation: [{ width: 800, height: 450, crop: 'fill', gravity: 'auto' }],
+    // `limit` only ever scales down, never crops — nothing the admin uploaded is lost.
+    transformation: [{ width: 1600, height: 1600, crop: 'limit' }],
   });
 
   const updated = await CaseBankOverview.findOneAndUpdate(

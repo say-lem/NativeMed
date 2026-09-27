@@ -76,7 +76,9 @@ export const updateCourse = async (
  *  1. Fetch the course so we have the existing thumbnailPublicId (if any).
  *  2. If an old thumbnail exists, destroy it on Cloudinary BEFORE uploading the
  *     new one — prevents orphaned assets accumulating in the media library.
- *  3. Upload the new image buffer and resize to a consistent 800×450 (16:9).
+ *  3. Upload the new image buffer, capped to a max 1600×1600 bounding box —
+ *     scaled down only if larger, never cropped, so nothing the admin uploaded
+ *     is lost.
  *  4. Persist both thumbnailUrl and thumbnailPublicId back to the Course document.
  *
  * The destroy-then-upload order is intentional: if the upload fails, the old
@@ -116,8 +118,9 @@ export const updateCourseThumbnail = async (
     use_filename: false,
     unique_filename: true,
     overwrite: false,
-    // Enforce a consistent 16:9 aspect ratio for all course thumbnails
-    transformation: [{ width: 800, height: 450, crop: 'fill', gravity: 'auto' }],
+    // `limit` only ever scales down, never crops — the frontend renders whatever
+    // aspect ratio comes out via object-contain, so nothing needs to be forced here.
+    transformation: [{ width: 1600, height: 1600, crop: 'limit' }],
   });
 
   // 4. Write both fields back to the Course document atomically
