@@ -12,13 +12,13 @@ export interface IBloodTestRow {
 }
 
 export interface IBloodTestResults {
-  summary: string;          // free-text summary of which panels were normal/abnormal
+  summary?: string;         // free-text summary of which panels were normal/abnormal
   rows: IBloodTestRow[];    // the actual table rows
 }
 
 export interface IRecentConsultation {
   date?: Date;
-  seenBy: string;           // e.g. "HCA Mandy Overton"
+  seenBy?: string;          // e.g. "HCA Mandy Overton"
   role?: string;            // e.g. "Healthcare Assistant"
   notes: string;            // free-text — vitals, reason, findings
 }
@@ -94,7 +94,7 @@ const bloodTestRowSchema = new Schema<IBloodTestRow>(
 
 const bloodTestResultsSchema = new Schema<IBloodTestResults>(
   {
-    summary: { type: String, required: true, trim: true },
+    summary: { type: String, trim: true },
     rows:    { type: [bloodTestRowSchema], default: [] },
   },
   { _id: false },
@@ -103,7 +103,7 @@ const bloodTestResultsSchema = new Schema<IBloodTestResults>(
 const recentConsultationSchema = new Schema<IRecentConsultation>(
   {
     date:   { type: Date },
-    seenBy: { type: String, required: true, trim: true },
+    seenBy: { type: String, trim: true },
     role:   { type: String, trim: true },
     notes:  { type: String, required: true, trim: true },
   },
