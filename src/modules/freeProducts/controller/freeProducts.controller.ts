@@ -5,6 +5,7 @@ import { AuthRequest } from '../../../shared/types';
 import {
   CreateLinkFreeProductInput,
   UploadPdfFreeProductInput,
+  RegisterPdfFreeProductInput,
   UploadBlogFreeProductInput,
   UpdateFreeProductInput,
 } from '../schema/freeProducts.schema';
@@ -43,6 +44,12 @@ export const uploadPdfProduct = asyncHandler(async (req: AuthRequest, res: Respo
   if (!req.file) return ApiResponse.error(res, 'No PDF file uploaded', 400);
   const input = req.body as UploadPdfFreeProductInput;
   const product = await freeProductsService.uploadPdfProduct(input, req.file, req.user!._id);
+  return ApiResponse.created(res, 'Free product created', product);
+});
+
+export const registerPdfProduct = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const input = req.body as RegisterPdfFreeProductInput;
+  const product = await freeProductsService.registerPdfProduct(input, req.user!._id);
   return ApiResponse.created(res, 'Free product created', product);
 });
 

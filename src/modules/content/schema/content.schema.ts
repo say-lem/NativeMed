@@ -25,6 +25,18 @@ export const updateContentSchema = z.object({
   duration: z.coerce.number().int().min(0).optional(),
 });
 
+// ── PDF link schema — direct-upload variant: admin already uploaded the PDF
+// directly to Cloudinary from the browser (see uploads.route.ts) and is now
+// just registering the resulting asset ───────────────────────────────────────
+export const registerPdfSchema = z.object({
+  title:    z.string().min(2).trim(),
+  order:    z.coerce.number().int().min(0).default(0),
+  type:     z.literal('pdf').default('pdf'),
+  fileUrl:  z.string().url(),
+  publicId: z.string().min(1),
+});
+
 export type UploadPdfInput     = z.infer<typeof uploadPdfSchema>;
+export type RegisterPdfInput   = z.infer<typeof registerPdfSchema>;
 export type AddDriveLinkInput  = z.infer<typeof addDriveLinkSchema>;
 export type UpdateContentInput = z.infer<typeof updateContentSchema>;

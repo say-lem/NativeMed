@@ -9,6 +9,7 @@ import { isEnrolled as isEnrolledInLiveCourse } from '../../liveCourses/service/
 import { CourseContent, ContentCourseType } from '../model/content.model';
 import {
   UploadPdfInput,
+  RegisterPdfInput,
   AddDriveLinkInput,
   UpdateContentInput,
 } from '../schema/content.schema';
@@ -91,6 +92,31 @@ export const uploadPdf = async (
     type:     'pdf',
     fileUrl:  result.secure_url,
     publicId: result.public_id,
+    order:    input.order,
+  });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin — register a PDF already uploaded directly to Cloudinary by the
+// browser (see uploads.service.ts). Mirrors uploadPdf but skips the upload
+// step entirely — the file never passes through this server.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const registerPdf = async (
+  courseId: string,
+  input: RegisterPdfInput,
+  courseType: ContentCourseType = 'Course',
+) => {
+  const course = await courseExists(courseId, courseType);
+  if (!course) throw new AppError(NOT_FOUND_MESSAGE[courseType], 404);
+
+  return CourseContent.create({
+    courseId,
+    courseType,
+    title:    input.title,
+    type:     'pdf',
+    fileUrl:  input.fileUrl,
+    publicId: input.publicId,
     order:    input.order,
   });
 };

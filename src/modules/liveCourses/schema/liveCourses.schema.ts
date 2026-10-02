@@ -64,6 +64,14 @@ export const restoreLiveCourseEnrollmentSchema = z.object({
   enrollmentId: mongoId,
 });
 
+// Admin already uploaded the TOC PDF directly to Cloudinary via the signed
+// direct-upload flow (see uploads.route.ts) and is now just registering the
+// resulting asset.
+export const registerTocPdfSchema = z.object({
+  fileUrl:  z.string().url(),
+  publicId: z.string().min(1),
+});
+
 export type CreateLiveCourseInput  = z.infer<typeof createLiveCourseSchema>;
 export type UpdateLiveCourseInput  = z.infer<typeof updateLiveCourseSchema>;
 export type PurchaseLiveCourseInput = z.infer<typeof purchaseLiveCourseSchema>;
@@ -71,3 +79,4 @@ export type LiveCourseFilterInput  = z.infer<typeof liveCourseFilterSchema>;
 export type ManualEnrollLiveCourseInput = z.infer<typeof manualEnrollLiveCourseSchema>;
 export type RevokeLiveCourseEnrollmentInput = z.infer<typeof revokeLiveCourseEnrollmentSchema>;
 export type RestoreLiveCourseEnrollmentInput = z.infer<typeof restoreLiveCourseEnrollmentSchema>;
+export type RegisterTocPdfInput = z.infer<typeof registerTocPdfSchema>;

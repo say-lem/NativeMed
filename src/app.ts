@@ -30,6 +30,7 @@ import freeProductsAdminRoutes from './modules/freeProducts/routes/admin.routes'
 import bookingRoutes from './modules/booking/routes/booking.route';
 import bookingAdminRoutes from './modules/booking/routes/admin.routes';
 import catalogRoutes from './modules/catalog/routes/catalog.route';
+import uploadsAdminRoutes from './modules/uploads/routes/uploads.route';
 
 const app = express();
 
@@ -114,6 +115,7 @@ app.use(`${API}/admin/free-products`, adminLimiter, freeProductsAdminRoutes);
 app.use(`${API}/booking`, generalLimiter, bookingRoutes);
 app.use(`${API}/admin/booking`, adminLimiter, bookingAdminRoutes);
 app.use(`${API}/products`, generalLimiter, catalogRoutes);
+app.use(`${API}/admin/uploads`, adminLimiter, uploadsAdminRoutes);
 
 // ── 404 handler 
 app.use((_req, res) => {

@@ -19,6 +19,19 @@ export const uploadPdfFreeProductSchema = z.object({
 
 export type UploadPdfFreeProductInput = z.infer<typeof uploadPdfFreeProductSchema>;
 
+// ── PDF product — direct-upload variant: admin already uploaded the file
+// directly to Cloudinary from the browser (see uploads.route.ts) and is now
+// just registering the resulting asset ───────────────────────────────────────
+export const registerPdfFreeProductSchema = z.object({
+  title:       z.string().trim().min(2, 'Title is required').max(200),
+  description: z.string().trim().min(5, 'Description must be at least 5 characters').max(2000),
+  fileUrl:     z.string().url(),
+  publicId:    z.string().min(1),
+  order:       z.coerce.number().int().min(0).default(0),
+});
+
+export type RegisterPdfFreeProductInput = z.infer<typeof registerPdfFreeProductSchema>;
+
 // ── Blog product — cover image (multipart) + title + written content ─────────
 // This is expected to be the common case; description is optional since the
 // content itself carries the material.

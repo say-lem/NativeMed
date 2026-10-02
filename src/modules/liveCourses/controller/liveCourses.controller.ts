@@ -89,6 +89,14 @@ export const uploadTocPdf = asyncHandler(async (req: Request, res: Response) => 
   return ApiResponse.success(res, 'Table of contents PDF updated', { tocPdfUrl: course.tocPdfUrl });
 });
 
+export const registerTocPdf = asyncHandler(async (req: Request, res: Response) => {
+  const course = await liveCoursesService.registerLiveCourseTocPdf(
+    getSingleParam(req.params.id),
+    req.body,
+  );
+  return ApiResponse.success(res, 'Table of contents PDF updated', { tocPdfUrl: course.tocPdfUrl });
+});
+
 export const endLiveCourse = asyncHandler(async (req: Request, res: Response) => {
   await liveCoursesService.endLiveCourse(getSingleParam(req.params.id));
   return ApiResponse.success(res, 'Live course ended — all enrollments revoked.');
