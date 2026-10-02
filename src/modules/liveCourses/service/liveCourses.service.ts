@@ -145,6 +145,40 @@ export const updateLiveCourseTocPdf = async (courseId: string, file: Express.Mul
   return updated;
 };
 
+/**
+ * Register a table-of-contents PDF already uploaded directly to Cloudinary
+ * by the browser (see uploads.service.ts) — same destroy-then-set ordering
+ * as updateLiveCourseTocPdf, just without the upload step since the file
+ * never passes through this server.
+ */
+export const registerLiveCourseTocPdf = async (
+  courseId: string,
+  input: { fileUrl: string; publicId: string },
+) => {
+  const course = await LiveCourse.findById(courseId).select('+tocPdfPublicId');
+  if (!course) throw new AppError('Live course not found', 404);
+
+  if (course.tocPdfPublicId) {
+    try {
+      await cloudinary.uploader.destroy(course.tocPdfPublicId, {
+        resource_type: 'raw',
+        type: 'authenticated',
+      });
+    } catch (err) {
+      console.error(`⚠️  Could not delete old TOC PDF (${course.tocPdfPublicId}):`, err);
+    }
+  }
+
+  const updated = await LiveCourse.findByIdAndUpdate(
+    courseId,
+    { tocPdfUrl: input.fileUrl, tocPdfPublicId: input.publicId },
+    { new: true },
+  );
+
+  if (!updated) throw new AppError('Live course not found', 404);
+  return updated;
+};
+
 const getTocPdfDeliveryUrl = (publicId: string): string =>
   cloudinary.utils.private_download_url(publicId, '', {
     resource_type: 'raw',

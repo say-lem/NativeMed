@@ -10,6 +10,7 @@ import {
   purchaseLiveCourseSchema,
   manualEnrollLiveCourseSchema,
   revokeLiveCourseEnrollmentSchema,
+  registerTocPdfSchema,
 } from '../schema/liveCourses.schema';
 import { uploadCourseThumbnail } from '../../courses/upload/courses.upload';
 import {
@@ -90,6 +91,17 @@ router.patch(
   tocPdfConcurrencyGuard,
   uploadTocPdf.single('tocPdf'),
   liveCoursesController.uploadTocPdf,
+);
+
+// Table of contents PDF — direct-upload variant: admin already uploaded the
+// PDF to Cloudinary from the browser (see uploads.route.ts) and is just
+// registering the resulting asset here.
+router.patch(
+  '/:id/toc-pdf-link',
+  authenticate,
+  authorize('admin'),
+  validate(registerTocPdfSchema),
+  liveCoursesController.registerTocPdf,
 );
 
 router.patch('/:id/publish', authenticate, authorize('admin'), liveCoursesController.togglePublish);

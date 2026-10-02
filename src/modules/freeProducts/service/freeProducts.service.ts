@@ -5,6 +5,7 @@ import { FreeProduct } from '../model/freeProducts.model';
 import {
   CreateLinkFreeProductInput,
   UploadPdfFreeProductInput,
+  RegisterPdfFreeProductInput,
   UploadBlogFreeProductInput,
   UpdateFreeProductInput,
 } from '../schema/freeProducts.schema';
@@ -45,6 +46,24 @@ export const uploadPdfProduct = async (
     type: 'pdf',
     fileUrl: result.secure_url,
     publicId: result.public_id,
+    order: input.order,
+    createdBy,
+  });
+};
+
+// PDF product — direct-upload variant: the file was already uploaded to
+// Cloudinary by the browser (see uploads.service.ts), so this just persists
+// the resulting asset instead of uploading anything itself.
+export const registerPdfProduct = async (
+  input: RegisterPdfFreeProductInput,
+  createdBy: Types.ObjectId,
+) => {
+  return FreeProduct.create({
+    title: input.title,
+    description: input.description,
+    type: 'pdf',
+    fileUrl: input.fileUrl,
+    publicId: input.publicId,
     order: input.order,
     createdBy,
   });

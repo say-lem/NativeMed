@@ -57,6 +57,15 @@ export const createContentController = (courseType: ContentCourseType) => ({
     return ApiResponse.created(res, 'PDF uploaded', content);
   }),
 
+  registerPdf: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const content = await contentService.registerPdf(
+      getSingleParam(req.params.courseId),
+      req.body,
+      courseType,
+    );
+    return ApiResponse.created(res, 'PDF added', content);
+  }),
+
   addDriveLink: asyncHandler(async (req: AuthRequest, res: Response) => {
     const content = await contentService.addDriveLink(
       getSingleParam(req.params.courseId),

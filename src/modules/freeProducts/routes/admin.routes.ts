@@ -5,6 +5,7 @@ import { validate } from '../../../shared/middleware/validate';
 import {
   createLinkFreeProductSchema,
   uploadPdfFreeProductSchema,
+  registerPdfFreeProductSchema,
   uploadBlogFreeProductSchema,
   updateFreeProductSchema,
 } from '../schema/freeProducts.schema';
@@ -33,6 +34,11 @@ router.post(
   validate(uploadPdfFreeProductSchema),
   freeProductsController.uploadPdfProduct,
 );
+
+// PDF product — direct-upload variant: admin already uploaded the file to
+// Cloudinary from the browser (see uploads.route.ts) and is just registering
+// the resulting asset here.
+router.post('/pdf-link', validate(registerPdfFreeProductSchema), freeProductsController.registerPdfProduct);
 
 // Blog product — cover image upload + written content. Expected to be the
 // common case; link/pdf remain for the minority that's just pointer material.

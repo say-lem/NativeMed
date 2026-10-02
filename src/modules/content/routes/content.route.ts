@@ -4,6 +4,7 @@ import { authorize } from '../../../shared/middleware/authorize';
 import { validate } from '../../../shared/middleware/validate';
 import {
   uploadPdfSchema,
+  registerPdfSchema,
   addDriveLinkSchema,
   updateContentSchema,
 } from '../schema/content.schema';
@@ -35,6 +36,16 @@ export const createContentRouter = (courseType: ContentCourseType) => {
     uploadPdfMiddleware.single('file'),
     validate(uploadPdfSchema),
     controller.uploadPdf,
+  );
+
+  // ── Admin: register a PDF already uploaded directly to Cloudinary ────────
+  // (see uploads.route.ts) — the file never passes through this server.
+  router.post(
+    '/pdf-link',
+    authenticate,
+    authorize('admin'),
+    validate(registerPdfSchema),
+    controller.registerPdf,
   );
 
   // ── Admin: register a Google Drive video/audio link ───────────────────────
