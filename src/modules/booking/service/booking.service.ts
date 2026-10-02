@@ -441,3 +441,26 @@ export const releasePendingBooking = async (session: Stripe.Checkout.Session): P
   booking.status = 'cancelled';
   await booking.save();
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scheduled sweep (see server.ts) — safety net for bookings stuck in
+// `pending` past an hour. Stripe's checkout.session.expired webhook is the
+// normal way a stale booking gets cleared (see releasePendingBooking above),
+// but if that webhook is ever missed or delayed, this catches it: the slot
+// is released and the booking itself is removed outright, rather than kept
+// around as `cancelled`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PENDING_BOOKING_TTL_MS = 60 * 60 * 1000;
+
+export const releaseExpiredPendingBookings = async (): Promise<number> => {
+  const cutoff = new Date(Date.now() - PENDING_BOOKING_TTL_MS);
+  const expired = await SessionBooking.find({ status: 'pending', createdAt: { $lt: cutoff } });
+
+  for (const booking of expired) {
+    await releaseSlot(booking.productId, booking.date, booking.time);
+    await booking.deleteOne();
+  }
+
+  return expired.length;
+};
