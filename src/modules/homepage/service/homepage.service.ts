@@ -273,7 +273,8 @@ export const updateFounderImage = async (file: Express.Multer.File) => {
     use_filename: false,
     unique_filename: true,
     overwrite: false,
-    transformation: [{ width: 800, height: 800, crop: 'fill', gravity: 'face' }],
+    // `limit` only ever scales down, never crops — nothing the admin uploaded is lost.
+    transformation: [{ width: 800, height: 800, crop: 'limit' }],
   });
 
   const updated = await HomepageSettings.findOneAndUpdate(
