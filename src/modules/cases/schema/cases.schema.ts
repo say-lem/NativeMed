@@ -21,13 +21,13 @@ const bloodTestRowSchema = z.object({
 });
 
 const bloodTestResultsSchema = z.object({
-  summary: nonEmptyString('Blood test summary'),
+  summary: z.string().trim().optional(),
   rows:    z.array(bloodTestRowSchema).default([]),
 });
 
 const recentConsultationSchema = z.object({
   date:   z.coerce.date().optional(),
-  seenBy: nonEmptyString('Seen by'),
+  seenBy: z.string().trim().optional(),
   role:   z.string().trim().optional(),
   notes:  nonEmptyString('Consultation notes'),
 });
