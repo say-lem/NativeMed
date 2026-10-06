@@ -3,7 +3,7 @@
 // Keeps every test offline: no real requests ever hit Stripe's API.
 
 export const stripeMock = {
-  checkout: { sessions: { create: jest.fn() } },
+  checkout: { sessions: { create: jest.fn(), retrieve: jest.fn() } },
   subscriptions: {
     retrieve: jest.fn(),
     update: jest.fn(),

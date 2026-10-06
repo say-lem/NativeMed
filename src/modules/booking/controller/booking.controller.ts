@@ -40,6 +40,11 @@ export const bookSession = asyncHandler(async (req: AuthRequest, res: Response) 
   return ApiResponse.success(res, 'Checkout session created — complete payment to confirm the booking', checkout);
 });
 
+export const resumeBookingPayment = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const checkout = await bookingService.resumeBookingPayment(getSingleParam(req.params.bookingId), req.user!._id);
+  return ApiResponse.success(res, 'Checkout session retrieved — complete payment to confirm the booking', checkout);
+});
+
 export const getMyBookings = asyncHandler(async (req: AuthRequest, res: Response) => {
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 20;

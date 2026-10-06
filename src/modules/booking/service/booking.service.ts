@@ -5,7 +5,13 @@ import { stripe } from '../../../config/stripe';
 import cloudinary, { CloudinaryFolders, uploadBuffer } from '../../../config/cloudinary';
 import { AppError } from '../../../shared/utils/appError';
 import { User } from '../../auth/model/auth.model';
-import { BookingProduct, ISessionBooking, SessionBooking, SlotAvailabilityRequest } from '../model/booking.model';
+import {
+  BookingProduct,
+  ISessionBooking,
+  PENDING_BOOKING_TTL_MS,
+  SessionBooking,
+  SlotAvailabilityRequest,
+} from '../model/booking.model';
 import { sendBookingNotificationEmail, sendSlotAvailabilityRequestEmail } from '../email/booking.email.service';
 import {
   CreateBookingProductInput,
@@ -311,10 +317,17 @@ export const bookSession = async (
   const successUrl = input.successUrl ?? `${env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = input.cancelUrl ?? `${env.CLIENT_URL}/payment/cancelled`;
 
+  // Mirrors PENDING_BOOKING_TTL_MS so Stripe's own session expiry lines up
+  // with the hold our sweep/webhook release on — the countdown the frontend
+  // renders and the window in which the checkout link actually works agree.
+  const paymentInitiatedAt = booking.createdAt;
+  const expiresAt = new Date(paymentInitiatedAt.getTime() + PENDING_BOOKING_TTL_MS);
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: user.email,
+      expires_at: Math.floor(expiresAt.getTime() / 1000),
       line_items: [
         {
           price_data: {
@@ -341,7 +354,7 @@ export const bookSession = async (
     booking.stripeCheckoutSessionId = session.id;
     await booking.save();
 
-    return { bookingId: booking._id, sessionId: session.id, url: session.url };
+    return { bookingId: booking._id, sessionId: session.id, url: session.url, paymentInitiatedAt, expiresAt };
   } catch (err) {
     // Checkout never started — release the hold rather than leaving a dead
     // reservation behind.
@@ -443,6 +456,39 @@ export const releasePendingBooking = async (session: Stripe.Checkout.Session): P
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// User — resume paying for a booking they started but didn't finish (closed
+// the tab, hit back, etc.). Returns the same Stripe checkout session's URL
+// rather than minting a new one, as long as the hour-long payment window
+// (and Stripe's matching session expiry) hasn't passed yet.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const resumeBookingPayment = async (bookingId: string, userId: Types.ObjectId) => {
+  const booking = await SessionBooking.findById(bookingId);
+  if (!booking || !booking.userId.equals(userId)) {
+    throw new AppError('Booking not found', 404);
+  }
+  if (booking.status !== 'pending') {
+    throw new AppError('This booking is no longer awaiting payment', 400);
+  }
+  if (!booking.stripeCheckoutSessionId) {
+    throw new AppError('No checkout session exists for this booking', 400);
+  }
+
+  const paymentInitiatedAt = booking.createdAt;
+  const expiresAt = new Date(paymentInitiatedAt.getTime() + PENDING_BOOKING_TTL_MS);
+  if (Date.now() >= expiresAt.getTime()) {
+    throw new AppError('The payment window for this booking has expired', 410);
+  }
+
+  const session = await stripe.checkout.sessions.retrieve(booking.stripeCheckoutSessionId);
+  if (!session.url || session.status !== 'open') {
+    throw new AppError('The payment window for this booking has expired', 410);
+  }
+
+  return { bookingId: booking._id, sessionId: session.id, url: session.url, paymentInitiatedAt, expiresAt };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Scheduled sweep (see server.ts) — safety net for bookings stuck in
 // `pending` past an hour. Stripe's checkout.session.expired webhook is the
 // normal way a stale booking gets cleared (see releasePendingBooking above),
@@ -450,8 +496,6 @@ export const releasePendingBooking = async (session: Stripe.Checkout.Session): P
 // is released and the booking itself is removed outright, rather than kept
 // around as `cancelled`.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const PENDING_BOOKING_TTL_MS = 60 * 60 * 1000;
 
 export const releaseExpiredPendingBookings = async (): Promise<number> => {
   const cutoff = new Date(Date.now() - PENDING_BOOKING_TTL_MS);

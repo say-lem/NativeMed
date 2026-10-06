@@ -88,6 +88,13 @@ export const BookingProduct = model<IBookingProduct>('BookingProduct', bookingPr
 // the slot is released back into the pool.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// A pending booking's checkout session (and its held slot) is only good for
+// an hour — see releaseExpiredPendingBookings() in the service and the
+// `expires_at` set on the Stripe checkout session in bookSession(). Shared
+// here so the computed `paymentExpiresAt` below (toJSON) and the service's
+// expiry checks always agree.
+export const PENDING_BOOKING_TTL_MS = 60 * 60 * 1000;
+
 export type SessionBookingStatus = 'pending' | 'confirmed' | 'cancelled';
 
 export interface ISessionBooking extends Document {
@@ -118,6 +125,22 @@ const sessionBookingSchema = new Schema<ISessionBooking>(
 sessionBookingSchema.index({ createdAt: -1 });
 sessionBookingSchema.index({ productId: 1 });
 sessionBookingSchema.index({ stripeCheckoutSessionId: 1 }, { sparse: true, unique: true });
+
+// Exposes when a pending booking's payment window closes, derived from
+// `createdAt` rather than stored, so the frontend can render a countdown
+// (and know when to offer "resume payment") without a second field to keep
+// in sync.
+sessionBookingSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    const safeRet = ret as unknown as Record<string, unknown> & { status: SessionBookingStatus; createdAt: Date };
+    if (safeRet.status === 'pending') {
+      safeRet.paymentInitiatedAt = safeRet.createdAt;
+      safeRet.paymentExpiresAt = new Date(safeRet.createdAt.getTime() + PENDING_BOOKING_TTL_MS);
+    }
+    delete safeRet.__v;
+    return safeRet;
+  },
+});
 
 export const SessionBooking = model<ISessionBooking>('SessionBooking', sessionBookingSchema);
 
