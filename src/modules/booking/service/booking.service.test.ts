@@ -51,6 +51,7 @@ describe('booking.service', () => {
   beforeEach(() => {
     mockedSendBookingNotificationEmail.mockClear();
     stripeMock.checkout.sessions.create.mockReset();
+    stripeMock.checkout.sessions.retrieve.mockReset();
     checkoutSessionCounter = 0;
     stripeMock.checkout.sessions.create.mockImplementation(async () => {
       checkoutSessionCounter += 1;
@@ -184,7 +185,10 @@ describe('booking.service', () => {
         bookingId: expect.anything(),
         sessionId: expect.stringMatching(/^cs_fake_\d+$/),
         url: expect.stringMatching(/^https:\/\/checkout\.stripe\.com\/cs_fake_\d+$/),
+        paymentInitiatedAt: expect.any(Date),
+        expiresAt: expect.any(Date),
       });
+      expect(checkout.expiresAt.getTime() - checkout.paymentInitiatedAt.getTime()).toBe(60 * 60 * 1000);
 
       const booking = await SessionBooking.findById(checkout.bookingId);
       expect(booking!.status).toBe('pending');
@@ -199,6 +203,26 @@ describe('booking.service', () => {
       expect(callArgs.mode).toBe('payment');
       expect(callArgs.line_items[0].price_data.unit_amount).toBe(5000);
       expect(callArgs.metadata).toMatchObject({ type: 'booking', productId: product._id.toString() });
+      expect(callArgs.expires_at).toBe(Math.floor(checkout.expiresAt.getTime() / 1000));
+    });
+
+    it("exposes the booking's payment window on its JSON representation while pending", async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+
+      const checkout = await bookingService.bookSession(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user._id,
+      );
+
+      const booking = await SessionBooking.findById(checkout.bookingId);
+      const json = booking!.toJSON() as unknown as Record<string, unknown>;
+      expect(new Date(json.paymentInitiatedAt as string).getTime()).toBe(booking!.createdAt.getTime());
+      expect(new Date(json.paymentExpiresAt as string).getTime()).toBe(
+        booking!.createdAt.getTime() + 60 * 60 * 1000,
+      );
     });
 
     it('rolls back the reservation if Stripe checkout creation fails', async () => {
@@ -286,6 +310,115 @@ describe('booking.service', () => {
       await expect(
         bookingService.bookSession(product._id.toString(), { date: new Date('2026-03-05'), time: '10:00' }, user._id),
       ).rejects.toMatchObject({ statusCode: 400 });
+    });
+  });
+
+  describe('resumeBookingPayment', () => {
+    it("returns the same checkout session's URL for a still-pending booking", async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+
+      const checkout = await bookingService.bookSession(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user._id,
+      );
+      stripeMock.checkout.sessions.retrieve.mockResolvedValueOnce({
+        id: checkout.sessionId,
+        url: checkout.url,
+        status: 'open',
+      });
+
+      const resumed = await bookingService.resumeBookingPayment(checkout.bookingId.toString(), user._id);
+
+      expect(stripeMock.checkout.sessions.retrieve).toHaveBeenCalledWith(checkout.sessionId);
+      expect(resumed).toEqual({
+        bookingId: checkout.bookingId,
+        sessionId: checkout.sessionId,
+        url: checkout.url,
+        paymentInitiatedAt: checkout.paymentInitiatedAt,
+        expiresAt: checkout.expiresAt,
+      });
+    });
+
+    it('rejects resuming a booking that belongs to another user', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const owner = await createTestUser();
+      const intruder = await createTestUser();
+
+      const checkout = await bookingService.bookSession(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        owner._id,
+      );
+
+      await expect(
+        bookingService.resumeBookingPayment(checkout.bookingId.toString(), intruder._id),
+      ).rejects.toMatchObject({ statusCode: 404 });
+      expect(stripeMock.checkout.sessions.retrieve).not.toHaveBeenCalled();
+    });
+
+    it('rejects resuming a booking that has already been confirmed', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+
+      const { checkout } = await bookAndConfirm(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user._id,
+      );
+
+      await expect(
+        bookingService.resumeBookingPayment(checkout.bookingId.toString(), user._id),
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
+
+    it('rejects resuming a booking whose hour-long payment window has passed', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+
+      const checkout = await bookingService.bookSession(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user._id,
+      );
+      // Bypasses mongoose's update layer (which strips an explicit createdAt
+      // out of the update doc, treating it as creation-only) to directly
+      // backdate the booking past its payment window.
+      await SessionBooking.collection.updateOne(
+        { _id: checkout.bookingId },
+        { $set: { createdAt: new Date(Date.now() - 61 * 60 * 1000) } },
+      );
+
+      await expect(
+        bookingService.resumeBookingPayment(checkout.bookingId.toString(), user._id),
+      ).rejects.toMatchObject({ statusCode: 410 });
+      expect(stripeMock.checkout.sessions.retrieve).not.toHaveBeenCalled();
+    });
+
+    it('rejects resuming when Stripe reports the session itself has already expired', async () => {
+      const product = await bookingService.createBookingProduct(baseProductInput, objectId());
+      await bookingService.addAvailableDate(product._id.toString(), { date: new Date('2026-03-05') });
+      const user = await createTestUser();
+
+      const checkout = await bookingService.bookSession(
+        product._id.toString(),
+        { date: new Date('2026-03-05'), time: '10:00' },
+        user._id,
+      );
+      stripeMock.checkout.sessions.retrieve.mockResolvedValueOnce({
+        id: checkout.sessionId,
+        url: null,
+        status: 'expired',
+      });
+
+      await expect(
+        bookingService.resumeBookingPayment(checkout.bookingId.toString(), user._id),
+      ).rejects.toMatchObject({ statusCode: 410 });
     });
   });
 

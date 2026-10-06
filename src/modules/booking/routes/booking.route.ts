@@ -22,6 +22,11 @@ router.post(
   bookingController.bookSession,
 );
 
+// Resume paying for a booking that's still within its hour-long payment
+// window — returns the same Stripe checkout session rather than a new one.
+// Two segments, so this never collides with the single-segment GET /:productId.
+router.get('/:bookingId/resume-payment', authenticate, bookingController.resumeBookingPayment);
+
 // Reach out about a session with no open slot — only accepted when the
 // product genuinely has nothing bookable right now (see booking.service.ts).
 router.post(
