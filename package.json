@@ -41,13 +41,13 @@
     "googleapis": "^171.4.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.3.2",
+    "mongoose": "^9.7.2",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
     "nodemailer": "^10.0.10",
     "stripe": "^22.2.2",
-    "zod": "^4.3.6",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
