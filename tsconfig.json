@@ -4,10 +4,11 @@
     "module": "commonjs",
     "lib": ["ES2020"],
     "typeRoots": ["./node_modules/@types"],
-    // "jest" is here so the editor resolves describe/it/expect in the
-    // *.test.ts files co-located under src/modules/**/service/ — those
-    // files are still excluded from the actual build below.
-    "types": ["node", "jest"],
+    // Test-file type resolution (describe/it/expect) is handled by
+    // tsconfig.jest.json, which extends this file and adds "jest" itself.
+    // Keeping it out of this list means `npm run build` doesn't require
+    // @types/jest — a devDependency — to be installed in production.
+    "types": ["node"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
