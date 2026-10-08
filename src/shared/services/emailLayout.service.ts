@@ -39,12 +39,12 @@ export const renderEmailLayout = ({ title, subtitle, body, footerNote }: RenderE
 <body>
   <div class="wrapper">
     <div class="header">
-      <h1>Native Med</h1>
+      <h1>Native Medical Education</h1>
       <p>${subtitle}</p>
     </div>
     <div class="body">${body}</div>
     <div class="footer">
-      &copy; ${new Date().getFullYear()} Native Med. All rights reserved.${footerNote ? `<br/>\n      ${footerNote}` : ''}
+      &copy; ${new Date().getFullYear()} Native Medical Education. All rights reserved.${footerNote ? `<br/>\n      ${footerNote}` : ''}
     </div>
   </div>
 </body>

@@ -40,7 +40,7 @@ const buildBookingIcs = (params: {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Native Med//Booking//EN',
+    'PRODID:-//Native Medical Education//Booking//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

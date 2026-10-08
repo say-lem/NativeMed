@@ -98,15 +98,15 @@ const sendEnrollmentConfirmation = async (
 };
 
 const DRIVE_ENROLLMENT_MESSAGE =
-  'You have been enrolled in a Native Med course. ' +
+  'You have been enrolled in a Native Medical Education course. ' +
   'You now have access to the course materials on Google Drive.';
 
 const DRIVE_COMPLIMENTARY_MESSAGE =
-  'You have been granted complimentary access to a Native Med course. ' +
+  'You have been granted complimentary access to a Native Medical Education course. ' +
   'You now have access to the course materials on Google Drive.';
 
 const DRIVE_RESTORE_MESSAGE =
-  'Your access to a Native Med course has been restored. ' +
+  'Your access to a Native Medical Education course has been restored. ' +
   'You can once again access the course materials on Google Drive.';
 
 // ─────────────────────────────────────────────────────────────────────────────

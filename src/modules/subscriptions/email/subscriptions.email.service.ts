@@ -22,7 +22,7 @@ export const sendCaseBankAccessGrantedEmail = async (
 ): Promise<void> => {
   const body = `
     <p>Hi ${fullName},</p>
-    <p>You now have access to <strong>Case Bank</strong> on Native Med.</p>
+    <p>You now have access to <strong>Case Bank</strong> on Native Medical Education.</p>
     <p>Log in to start practising cases.</p>
     <a href="${loginUrl}" class="btn block">Log in</a>
     <hr class="divider" />
@@ -33,7 +33,7 @@ export const sendCaseBankAccessGrantedEmail = async (
     to,
     subject: 'Your Case Bank access is active',
     html: layout('Case Bank Access', body),
-    text: `Hi ${fullName}, you now have access to Case Bank on Native Med. Log in here: ${loginUrl}`,
+    text: `Hi ${fullName}, you now have access to Case Bank on Native Medical Education. Log in here: ${loginUrl}`,
   });
 };
 
@@ -45,7 +45,7 @@ export const sendCaseBankAccessEndedEmail = async (
 ): Promise<void> => {
   const body = `
     <p>Hi ${fullName},</p>
-    <p>Your access to <strong>Case Bank</strong> on Native Med has ended.</p>
+    <p>Your access to <strong>Case Bank</strong> on Native Medical Education has ended.</p>
     <p>You can resubscribe at any time to regain access.</p>
     <hr class="divider" />
     <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk .</p>
@@ -55,7 +55,7 @@ export const sendCaseBankAccessEndedEmail = async (
     to,
     subject: 'Your Case Bank access has ended',
     html: layout('Case Bank Access Ended', body),
-    text: `Hi ${fullName}, your Case Bank access on Native Med has ended.`,
+    text: `Hi ${fullName}, your Case Bank access on Native Medical Education has ended.`,
   });
 };
 

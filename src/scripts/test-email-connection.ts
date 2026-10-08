@@ -33,7 +33,7 @@ const main = async () => {
   try {
     await sendMail({
       to,
-      subject: 'Native Med — Gmail API test email',
+      subject: 'Native Medical Education — Gmail API test email',
       html: '<p>This is a test email confirming the Gmail API is configured correctly.</p>',
       text: 'This is a test email confirming the Gmail API is configured correctly.',
     });

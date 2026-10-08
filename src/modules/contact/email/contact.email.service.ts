@@ -19,7 +19,7 @@ export const sendContactMessageEmail = async ({
   const safeMessage = escapeHtml(message).replace(/\n/g, '<br/>');
 
   const body = `
-    <p>You've received a new message from the Native Med contact form.</p>
+    <p>You've received a new message from the Native Medical Education contact form.</p>
     <p><strong>Name:</strong> ${safeName}<br/>
     <strong>Email:</strong> ${safeEmail}</p>
     <hr class="divider" />

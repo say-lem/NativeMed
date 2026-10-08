@@ -96,7 +96,7 @@ export const addDrivePermission = async (
       sendNotificationEmail: true,
       emailMessage:
         notificationMessage ??
-        'You now have access to your Native Med course materials on Google Drive.',
+        'You now have access to your Native Medical Education course materials on Google Drive.',
       requestBody: {
         type: 'user',
         role: 'reader',

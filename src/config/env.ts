@@ -29,7 +29,7 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REFRESH_TOKEN: z.string().optional(),
-  EMAIL_FROM_NAME: z.string().default('Native Med'),
+  EMAIL_FROM_NAME: z.string().default('Native Medical Education'),
   EMAIL_FROM_ADDRESS: z.string().email().default('noreply@nativemed.com'),
 
   // ── Contact form ──────────────────────────────────────────────────────────────

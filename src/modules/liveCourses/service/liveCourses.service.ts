@@ -19,15 +19,15 @@ const DRIVE_FOLDER_SELECT = '+driveFolderId';
 const MANUAL_PAYMENT_ID = new Types.ObjectId('000000000000000000000000');
 
 const PURCHASE_MESSAGE =
-  'You have purchased a Native Med live course. ' +
+  'You have purchased a Native Medical Education live course. ' +
   'You now have access to the course materials on Google Drive.';
 
 const COMPLIMENTARY_MESSAGE =
-  'You have been granted complimentary access to a Native Med live course. ' +
+  'You have been granted complimentary access to a Native Medical Education live course. ' +
   'You now have access to the course materials on Google Drive.';
 
 const RESTORE_MESSAGE =
-  'Your access to a Native Med live course has been restored. ' +
+  'Your access to a Native Medical Education live course has been restored. ' +
   'You can once again access the course materials on Google Drive.';
 
 // ─────────────────────────────────────────────────────────────────────────────
