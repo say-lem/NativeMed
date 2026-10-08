@@ -1,7 +1,9 @@
 import { Types } from 'mongoose';
 import * as activitiesService from './activities.service';
-import { createTestCourse } from '../../../../tests/helpers/factories';
+import { createTestCourse, createTestLiveCourse } from '../../../../tests/helpers/factories';
 import { createActivitySchema, updateActivitySchema } from '../schema/activities.schema';
+import { BookingProduct } from '../../booking/model/booking.model';
+import { FreeProduct } from '../../freeProducts/model/freeProducts.model';
 import { Activity } from '../model/activities.model';
 
 describe('activities.service', () => {
@@ -111,5 +113,57 @@ describe('announcement fields and publishing', () => {
 
   it.each([{ time: '25:00' }, { time: '12:60' }, { activityType: ' ' }, { courseId: 'invalid' }, { activityStatus: 123 }])('rejects invalid metadata %j', (fields) => {
     expect(updateActivitySchema.safeParse(fields).success).toBe(false);
+  });
+});
+
+
+describe('product attachments', () => {
+  it('attaches every product type, replaces links, and unlinks', async () => {
+    const adminId = new Types.ObjectId();
+    const course = await createTestCourse(adminId);
+    const live = await createTestLiveCourse(adminId);
+    const booking = await BookingProduct.create({ title: 'Session', description: 'A session', price: 50, createdBy: adminId });
+    const free = await FreeProduct.create({ title: 'Resource', description: 'A resource', type: 'link', fileUrl: 'https://example.com', createdBy: adminId });
+    for (const product of [
+      { type: 'course', id: course.id }, { type: 'live_course', id: live.id },
+      { type: 'one_on_one', id: booking.id }, { type: 'free_product', id: free.id },
+      { type: 'case_bank' },
+    ]) {
+      const activity = await activitiesService.createActivity(createActivitySchema.parse({
+        date: new Date(), description: 'Product announcement', product,
+      }), adminId);
+      const stored = await Activity.findById(activity.id);
+      expect(stored?.product?.type).toBe(product.type);
+      expect(stored?.product?.id?.toString()).toBe(product.id);
+      const updated = await activitiesService.updateActivity(activity.id, { product: { type: 'course', id: course.id } });
+      expect(updated.courseId?.toString()).toBe(course.id);
+      await activitiesService.updateActivity(activity.id, { product: { type: 'case_bank' } });
+      expect((await Activity.findById(activity.id))?.courseId).toBeNull();
+      await activitiesService.updateActivity(activity.id, { product: null });
+      expect((await Activity.findById(activity.id))?.product).toBeNull();
+    }
+  });
+
+  it.each(['course', 'live_course', 'one_on_one', 'free_product'])('rejects missing %s products on create and update', async (type) => {
+    const product = createActivitySchema.parse({ date: new Date(), description: 'Missing product', product: { type, id: new Types.ObjectId().toString() } });
+    await expect(activitiesService.createActivity(product, new Types.ObjectId())).rejects.toMatchObject({ statusCode: 404 });
+    const activity = await activitiesService.createActivity({ date: new Date(), description: 'Existing activity' }, new Types.ObjectId());
+    await expect(activitiesService.updateActivity(activity.id, { product: product.product })).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('exposes legacy links as product attachments', async () => {
+    const courseId = new Types.ObjectId();
+    const activity = await Activity.create({ date: new Date(), description: 'Legacy activity', createdBy: new Types.ObjectId(), courseId });
+    expect(activity.toJSON().product).toMatchObject({ type: 'course', id: courseId });
+  });
+
+  it.each([
+    { product: { type: 'unknown' } }, { product: { type: 'course' } },
+    { product: { type: 'live_course', id: 'bad' } },
+    { product: { type: 'case_bank', id: new Types.ObjectId().toString() } },
+    { product: null, courseId: null },
+  ])('rejects invalid or conflicting attachments %j', (fields) => {
+    expect(updateActivitySchema.safeParse(fields).success).toBe(false);
+    expect(createActivitySchema.safeParse({ date: new Date(), description: 'Announcement', ...fields }).success).toBe(false);
   });
 });

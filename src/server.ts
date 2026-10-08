@@ -1,39 +1,73 @@
+
 import dns from 'dns';
+import mongoose from 'mongoose';
 import { env } from './config/env';
 import { connectDB } from './config/db';
 import app from './app';
 import { releaseExpiredPendingBookings } from './modules/booking/service/booking.service';
 
-// Render (and several other hosts) resolve outbound IPv6 addresses for hosts
-// like smtp.gmail.com but don't actually route IPv6 traffic, causing
-// ENETUNREACH on the first connection attempt. Preferring IPv4 avoids it.
+// Prefer IPv4 for outbound connections
 dns.setDefaultResultOrder('ipv4first');
 
-const start = async () => {
-  await connectDB();
+const start = () => {
+  // Use the hosting provider's PORT when available
+  const PORT = Number(process.env.PORT || env.PORT || 5000);
 
-  const server = app.listen(env.PORT, () => {
-    console.log(` Server running on port ${env.PORT} [${env.NODE_ENV}]`);
-    console.log(`API base: http://localhost:${env.PORT}/api/v1`);
+  // Start Express immediately without waiting for MongoDB
+  const server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT} [${env.NODE_ENV}]`);
+    console.log(`API base: /api/v1`);
   });
 
-  // ── Release stale one-on-one booking holds
-  // Runs immediately (so anything already stuck past an hour is cleared on
-  // boot) and then on a 5-minute cadence. See releaseExpiredPendingBookings.
-  const sweepExpiredBookings = () => {
-    releaseExpiredPendingBookings().catch((err) =>
-      console.error(' Failed to release expired pending bookings:', err),
-    );
-  };
-  sweepExpiredBookings();
-  const bookingSweepInterval = setInterval(sweepExpiredBookings, 5 * 60 * 1000);
+  let bookingSweepInterval: ReturnType<typeof setInterval> | undefined;
 
-  // ── Graceful shutdown
+  // Connect to MongoDB independently
+  const initializeDatabase = async () => {
+    try {
+      await connectDB();
+      console.log('Database initialization completed');
+
+      // Start booking cleanup only after MongoDB connects
+      const sweepExpiredBookings = () => {
+        releaseExpiredPendingBookings().catch((err) =>
+          console.error('Failed to release expired pending bookings:', err),
+        );
+      };
+
+      sweepExpiredBookings();
+
+      bookingSweepInterval = setInterval(
+        sweepExpiredBookings,
+        5 * 60 * 1000,
+      );
+    } catch (error) {
+      console.error('Database initialization failed:', error);
+
+      // Stop the application if the database cannot connect
+      server.close(() => process.exit(1));
+    }
+  };
+
+  void initializeDatabase();
+
+  // Graceful shutdown
   const shutdown = (signal: string) => {
-    console.log(`\n  ${signal} received — shutting down gracefully`);
-    clearInterval(bookingSweepInterval);
-    server.close(() => {
-      console.log(' HTTP server closed');
+    console.log(`${signal} received — shutting down gracefully`);
+
+    if (bookingSweepInterval) {
+      clearInterval(bookingSweepInterval);
+    }
+
+    server.close(async () => {
+      console.log('HTTP server closed');
+
+      try {
+        await mongoose.disconnect();
+        console.log('MongoDB disconnected');
+      } catch (error) {
+        console.error('MongoDB disconnect error:', error);
+      }
+
       process.exit(0);
     });
   };
@@ -41,11 +75,11 @@ const start = async () => {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 
-  // Crash loudly on unhandled rejections in development
   process.on('unhandledRejection', (reason) => {
-    console.error(' Unhandled rejection:', reason);
+    console.error('Unhandled rejection:', reason);
+
     if (env.NODE_ENV === 'production') {
-      server.close(() => process.exit(1));
+      shutdown('unhandledRejection');
     }
   });
 };
