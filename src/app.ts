@@ -55,7 +55,7 @@ const makeLimiter = (capacity: number, message: string) =>
   createLeakyBucketLimiter({ capacity, windowMs: 15 * 60 * 1000, message });
 
 const authLimiter = makeLimiter(20, 'Too many login attempts, please try again later.');
-const adminLimiter = makeLimiter(60, 'Too many admin requests, please try again later.');
+const adminLimiter = makeLimiter(180, 'Too many admin requests, please try again later.');
 const paymentsLimiter = makeLimiter(80, 'Too many payment requests, please try again later.');
 const contentLimiter = makeLimiter(150, 'Too many requests, please try again later.');
 const generalLimiter = makeLimiter(200, 'Too many requests, please try again later.');
