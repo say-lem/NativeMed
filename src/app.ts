@@ -55,7 +55,7 @@ const makeLimiter = (capacity: number, message: string) =>
   createLeakyBucketLimiter({ capacity, windowMs: 15 * 60 * 1000, message });
 
 const authLimiter = makeLimiter(20, 'Too many login attempts, please try again later.');
-const adminLimiter = makeLimiter(180, 'Too many admin requests, please try again later.');
+const adminLimiter = makeLimiter(1500, 'Too many admin requests, please try again later.');
 const paymentsLimiter = makeLimiter(80, 'Too many payment requests, please try again later.');
 const contentLimiter = makeLimiter(150, 'Too many requests, please try again later.');
 const generalLimiter = makeLimiter(200, 'Too many requests, please try again later.');
@@ -105,17 +105,17 @@ app.use(`${API}/cases`, generalLimiter, casesRoutes);
 // sole job is dispatching an email.
 app.use(`${API}/contact`, contactRoutes);
 app.use(`${API}/reviews`, generalLimiter, reviewsRoutes);
-app.use(`${API}/admin/reviews`, adminLimiter, reviewsAdminRoutes);
+app.use(`${API}/admin/reviews`, reviewsAdminRoutes);
 app.use(`${API}/activities`, generalLimiter, activitiesRoutes);
-app.use(`${API}/admin/activities`, adminLimiter, activitiesAdminRoutes);
+app.use(`${API}/admin/activities`, activitiesAdminRoutes);
 app.use(`${API}/homepage`, generalLimiter, homepageRoutes);
-app.use(`${API}/admin/homepage`, adminLimiter, homepageAdminRoutes);
+app.use(`${API}/admin/homepage`, homepageAdminRoutes);
 app.use(`${API}/free-products`, generalLimiter, freeProductsRoutes);
-app.use(`${API}/admin/free-products`, adminLimiter, freeProductsAdminRoutes);
+app.use(`${API}/admin/free-products`, freeProductsAdminRoutes);
 app.use(`${API}/booking`, generalLimiter, bookingRoutes);
-app.use(`${API}/admin/booking`, adminLimiter, bookingAdminRoutes);
+app.use(`${API}/admin/booking`, bookingAdminRoutes);
 app.use(`${API}/products`, generalLimiter, catalogRoutes);
-app.use(`${API}/admin/uploads`, adminLimiter, uploadsAdminRoutes);
+app.use(`${API}/admin/uploads`, uploadsAdminRoutes);
 
 // ── 404 handler 
 app.use((_req, res) => {
