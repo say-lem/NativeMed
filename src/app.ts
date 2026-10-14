@@ -54,11 +54,10 @@ app.use(
 const makeLimiter = (capacity: number, message: string) =>
   createLeakyBucketLimiter({ capacity, windowMs: 15 * 60 * 1000, message });
 
-const authLimiter = makeLimiter(20, 'Too many login attempts, please try again later.');
 const adminLimiter = makeLimiter(1500, 'Too many admin requests, please try again later.');
 const paymentsLimiter = makeLimiter(80, 'Too many payment requests, please try again later.');
-const contentLimiter = makeLimiter(150, 'Too many requests, please try again later.');
-const generalLimiter = makeLimiter(200, 'Too many requests, please try again later.');
+const contentLimiter = makeLimiter(1500, 'Too many requests, please try again later.');
+const generalLimiter = makeLimiter(1500, 'Too many requests, please try again later.');
 const healthLimiter = makeLimiter(600, 'Too many health checks, please try again later.');
 
 const API = '/api/v1';
@@ -90,11 +89,11 @@ app.get('/health', healthLimiter, (_req, res) => {
 
 // ── API routes 
 
-app.use(`${API}/auth`, authLimiter, authRoutes);
+app.use(`${API}/auth`, authRoutes);
 app.use(`${API}/courses`, contentLimiter, coursesRoutes);
-app.use(`${API}/courses/:courseId/content`, contentLimiter, createContentRouter('Course')); // nested: /courses/:id/content
+app.use(`${API}/courses/:courseId/content`, createContentRouter('Course')); // parent /courses mount already counts this request
 app.use(`${API}/live-courses`, contentLimiter, liveCoursesRoutes);
-app.use(`${API}/live-courses/:courseId/content`, contentLimiter, createContentRouter('LiveCourse')); // nested: /live-courses/:id/content
+app.use(`${API}/live-courses/:courseId/content`, createContentRouter('LiveCourse')); // parent /live-courses mount already counts this request
 app.use(`${API}/enrollments`, contentLimiter, enrollmentsRoutes);
 app.use(`${API}/payments`, paymentsLimiter, paymentsRoutes);
 app.use(`${API}/subscriptions`, paymentsLimiter, subscriptionsRoutes);
