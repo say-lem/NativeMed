@@ -18,8 +18,9 @@ export const sendWelcomeEmail = async (
 ): Promise<void> => {
   const body = `
     <p>Hi ${fullName},</p>
-    <p>Welcome to <strong>Native Medical Education</strong>! Your account has been created successfully.</p>
-    <p>You can now log in and explore available courses, mock cases and the question bank.</p>
+    <p>Welcome to <strong>Native Medical Education</strong>!</p>
+    <p>Your account has been successfully created. We are delighted to have you on board!</p>
+    <p>You can now log in to explore our courses, case bank and learning resources designed to support your professional development.</p>
     <a href="${env.CLIENT_URL}/login" class="btn block">Go to your dashboard</a>
     <hr class="divider" />
     <p class="note">If you have any questions, reach out to our support team at info@nativemeded.co.uk.</p>
@@ -27,9 +28,9 @@ export const sendWelcomeEmail = async (
 
   await sendMail({
     to,
-    subject: 'Welcome to Native Medical Education ',
+    subject: 'Welcome to Native Medical Education!',
     html: layout('Welcome to Native Medical Education', body),
-    text: `Hi ${fullName}, welcome to Native Medical Education! Your account has been created. Log in at ${env.CLIENT_URL}/login`,
+    text: `Hi ${fullName},\n\nWelcome to Native Medical Education!\n\nYour account has been successfully created. We are delighted to have you on board!\n\nYou can now log in to explore our courses, case bank and learning resources designed to support your professional development.\n\nLog in at ${env.CLIENT_URL}/login`,
   });
 };
 
