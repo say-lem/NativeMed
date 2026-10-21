@@ -5,6 +5,7 @@ import { env } from './config/env';
 import { connectDB } from './config/db';
 import app from './app';
 import { releaseExpiredPendingBookings } from './modules/booking/service/booking.service';
+import { processPendingWebhookEvents } from './modules/payments/service/webhookQueue.service';
 
 // Prefer IPv4 for outbound connections
 dns.setDefaultResultOrder('ipv4first');
@@ -20,6 +21,7 @@ const start = () => {
   });
 
   let bookingSweepInterval: ReturnType<typeof setInterval> | undefined;
+  let webhookSweepInterval: ReturnType<typeof setInterval> | undefined;
 
   // Connect to MongoDB independently
   const initializeDatabase = async () => {
@@ -40,6 +42,20 @@ const start = () => {
         sweepExpiredBookings,
         5 * 60 * 1000,
       );
+
+      // Retry any webhook events left pending/failed (e.g. after a crash or a failed attempt)
+      const sweepWebhookEvents = () => {
+        processPendingWebhookEvents().catch((err) =>
+          console.error('Failed to process pending webhook events:', err),
+        );
+      };
+
+      sweepWebhookEvents();
+
+      webhookSweepInterval = setInterval(
+        sweepWebhookEvents,
+        60 * 1000,
+      );
     } catch (error) {
       console.error('Database initialization failed:', error);
 
@@ -56,6 +72,10 @@ const start = () => {
 
     if (bookingSweepInterval) {
       clearInterval(bookingSweepInterval);
+    }
+
+    if (webhookSweepInterval) {
+      clearInterval(webhookSweepInterval);
     }
 
     server.close(async () => {

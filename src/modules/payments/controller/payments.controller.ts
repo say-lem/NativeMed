@@ -4,6 +4,7 @@ import { ApiResponse } from '../../../shared/utils/apiResponse';
 import { AuthRequest } from '../../../shared/types';
 import * as paymentsService from '../service/payments.service';
 import * as subscriptionsService from '../../subscriptions/service/subscriptions.service';
+import { enqueueWebhookEvent, processWebhookEventNow } from '../service/webhookQueue.service';
 
 export const getPlans = asyncHandler(async (_req, res: Response) => {
   const plans = await subscriptionsService.getAvailablePlans();
@@ -48,7 +49,9 @@ export const handleWebhook = asyncHandler(async (req, res: Response) => {
   }
 
   const event = paymentsService.constructWebhookEvent(req.body as Buffer, signature);
-  await paymentsService.handleWebhookEvent(event);
+  const queued = await enqueueWebhookEvent(event);
 
-  return res.status(200).json({ received: true });
+  res.status(200).json({ received: true });
+
+  processWebhookEventNow(queued._id);
 });
