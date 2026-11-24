@@ -401,7 +401,7 @@ const sendPurchaseConfirmation = async (userId: Types.ObjectId | string, courseI
       course.whatsappChannel,
     );
   } catch (err) {
-    console.error('❌  Live course purchase email failed:', err);
+    console.error('Live course purchase email failed:', err instanceof Error ? err.message : err);
   }
 };
 

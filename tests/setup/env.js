@@ -32,6 +32,16 @@ process.env.STRIPE_PRICE_CASE_BANK_MONTHLY = 'price_fake_case_bank_monthly';
 process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = '';
 process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = '';
 
+// Same reasoning, same real-credential risk: .env has a real Gmail OAuth
+// client id/secret/refresh token, which would make isGmailConfigured true
+// and src/config/gmail.ts construct a real OAuth2 client — sending live
+// token-refresh requests to Google during enrollment/purchase email tests.
+// Blank keeps isGmailConfigured false, so sendMail() falls back to the
+// logDevEmail() no-op (see src/shared/services/email.service.ts).
+process.env.GOOGLE_CLIENT_ID = '';
+process.env.GOOGLE_CLIENT_SECRET = '';
+process.env.GOOGLE_REFRESH_TOKEN = '';
+
 // No real SMTP_HOST is set in .env either, so nodemailer already falls back
 // to its offline jsonTransport — but pin it explicitly so that stays true
 // even if someone adds SMTP_HOST to .env later.
