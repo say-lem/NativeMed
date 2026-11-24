@@ -56,7 +56,9 @@
     "handlebars": "4.7.10",
     "mongoose": {
       "mongodb": "7.2.0"
-    }
+    },
+    "glob": "^14.0.6",
+    "minimatch": "^11.0.9"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
